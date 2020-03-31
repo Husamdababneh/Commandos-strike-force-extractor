@@ -2,7 +2,7 @@
    $File: functions.h
    $Date: 2020-03-30
    $Creator: Husam Dababneh
-    ========================================================================*/
+   ========================================================================*/
 
 #pragma once
 #include "main.h"
@@ -13,22 +13,22 @@
 #define ERRORANDEXIT(x) { std::cerr << x ; return 0;}
 #define assertm(exp, msg) assert((msg, exp))
 /*extern void ProgressBar()
-{
-	while(progress < maxNum)
-	{
-		int barWidth = 70;
-		std::cout << "[";
-		float realPos = ((float)progress / maxNum);
-		int pos = int(barWidth * realPos);
-		for (int i = 0; i < barWidth; ++i) {
-			if (i < pos) std::cout << "=";
-			else if (i == pos) std::cout << ">";
-			else std::cout << " ";
-		}
-		std::cout << "] " << int(realPos* 100)  << " %\r";
-		std::cout.flush();
-	}
-} 
+  {
+  while(progress < maxNum)
+  {
+  int barWidth = 70;
+  std::cout << "[";
+  float realPos = ((float)progress / maxNum);
+  int pos = int(barWidth * realPos);
+  for (int i = 0; i < barWidth; ++i) {
+  if (i < pos) std::cout << "=";
+  else if (i == pos) std::cout << ">";
+  else std::cout << " ";
+  }
+  std::cout << "] " << int(realPos* 100)  << " %\r";
+  std::cout.flush();
+  }
+  } 
 */
 
 void zerr(int ret)
@@ -84,7 +84,7 @@ extern const char * GetTypeFromCode(int code)
 {
 	switch(code)
 	{
-	  case NO_DATA:
+	  case HEADER:
 		  return "Not Expected";
 	  case LIST:
 		  return "List";
@@ -94,39 +94,9 @@ extern const char * GetTypeFromCode(int code)
 		  return "Float";
 	  case STRING:
 		  return "String";
+	  case COLLECTION:
+		  return "Pair";
 	  default:
 		  return  "Unknown Data type";
 	}
 }
-
-bool PrintData(CSFFBSData& data)
-{
-	switch(data.type)
-	{
-	  case LIST:
-		  std::cout << "\tValue      : This Is a list we need some work .. Recursion ?? "
-					<< "\n";
-		  return true;
-		  break;
-	  case FLOAT:
-		  std::cout << "\tValue      : " << std::fixed << data.FloatValue << "\n";
-		  break;
-	  case INT:
-		  std::cout << "\tValue      : " << data.IntegerValue << "\n";
-		  break;
-	  case STRING:
-		  std::cout << "\tValue      : String index "
-					<< data.IntegerValue<< " from string table\n";
-		  break;
-	  default:
-		  std::cout << "\tUnhandled Data type      : "
-					<< std::hex << data.type << std::dec << "\n";
-		  return true;
-	}
-	std::cout << "\tType       : " << GetTypeFromCode(data.type) << "\n";
-	return false;
-}
-
-
-
-

@@ -21,6 +21,7 @@ bool ExtractPakFiles(const char * filepath)
 {
 
 	std::cout << "Opening  " << filepath << "\n";
+	std::cout << "Sizeof(PakHeader)" << sizeof(PakHeader) << "\n";
 	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
 
 	if (!file.is_open())
@@ -32,9 +33,9 @@ bool ExtractPakFiles(const char * filepath)
 	int maximumFileSize = 0;
 	file.read((char*)&pak, sizeof(PakHeader));
 	std::cout << "File type = ";
-	std::cout.write((char*)&pak.packtype,4) << "\n";
-	std::cout << "V1 = " << pak.unknown1 << "\n";
-	std::cout << "V2 = " << pak.unknown2 << "\n";
+	std::cout.write((char*)&pak.Tag, 4) << "\n";
+	// std::cout << "V1 = " << pak.Unknown1 << "\n";
+	// std::cout << "V2 = " << pak.Unknown2 << "\n";
 	std::cout << "ResNum = " << pak.ResNum << "\n";
 
 	FilesData* filesData = new FilesData[pak.ResNum];
@@ -48,39 +49,40 @@ bool ExtractPakFiles(const char * filepath)
 		int size = 0;
 
 		while((ch = file.get()) != '\0')
-			filedata.filename[size++] = ch;
+			filedata.Filename[size++] = ch;
 
-		filedata.filename[size] = '\0';
+		filedata.Filename[size] = '\0';
 		
 		file.read((char*)&filedata.ROFF, sizeof(long));
 		file.read((char*)&filedata.Size, sizeof(long));
-		file.read((char*)&filedata.V1, sizeof(long));
-		file.read((char*)&filedata.V2, sizeof(long));
+		file.read((char*)&filedata.Unknown1, sizeof(long));
+		file.read((char*)&filedata.Unknown2, sizeof(long));
 
-		std::cout << "Filename: " << filedata.filename;
-		std::cout << " roff: " << filedata.ROFF;
-		std::cout << " size: " << filedata.Size;
-		std::cout << " v1: " << /*std::hex <<*/ filedata.V1;
-		std::cout << " v2: " << /*std::hex << */filedata.V2 << std::dec;
+		
+		//std::cout << "roff: " << filedata.ROFF;
+		//std::cout << "\tsize:" << std::setw(8) << filedata.Size;
+		std::cout << "v1: "  << std::hex  << filedata.Unknown1;
+		std::cout << "\tv2: "  << std::hex  << (int)filedata.Unknown2 << std::dec;
+		std::cout << "\tFilename: " << filedata.Filename;
 		std::cout << "\n";
 		
 		
 		if (filedata.Size > maximumFileSize)
 			maximumFileSize = filedata.Size;
 	}
+	std::cout << "File offset = " << std::hex << file.tellg() <<std::dec <<"\n";
+	return 0;
 	maxNum = pak.ResNum;
-	//std::thread t1(ProgressBar);
 	char* data = new char[maximumFileSize];
 	for (int a = 0; a < pak.ResNum; a++)
 	{
 		std::filesystem::path path{ "D:\\Husam\\Games\\CSF\\Data" };
 		path /= std::filesystem::path(filepath).stem();
-		path /= filesData[a].filename;
+		path /= filesData[a].Filename;
 		std::filesystem::create_directories(path.parent_path());
 		std::fstream outfile(path, std::fstream::out | std::fstream::binary);
 
-		// Check why this is not working ?? 
-		if (((char*)&pak.packtype)[3] == 'A')
+		if (((char*)&pak.Tag)[3] == 'A')
 		{
 			file.read(data, filesData[a].Size);
 		}
@@ -91,12 +93,12 @@ bool ExtractPakFiles(const char * filepath)
 			char junk[sizeof(long)];
 			int offset = 0;
 			
-			// What i found was that deflate and inflate has around 4:1 ratio of compression
+			// What i found was that inflate has around 4:1 ratio of compression
 			// for avarage files
 			constexpr int MaxPackedBlockSize = 4096 + 1024;
 			constexpr int MaxUnpackedBlockSize = MaxPackedBlockSize * 4;
 			char packed[MaxPackedBlockSize], unpacked[MaxUnpackedBlockSize];
-			
+			// @Incomplete(Husam):Performance and more general way ??.
 			while(1){
 				if (size <= 0)
 				{
@@ -123,7 +125,6 @@ bool ExtractPakFiles(const char * filepath)
 		outfile.write(data, filesData[a].Size);
 		outfile.close();
 	}
-	//t1.join();
 	file.close();
 	return true;
 }
@@ -174,39 +175,17 @@ bool RPCConvert(const char * filepath)
 }
 
 // @Incomplete(Husam):Parameter
-void Test()
+void ExtractCSFFBS(const char *filepath)
 {
-	const char* gest =
-		"D:\\Husam\\Games\\CSF\\data\\Ambush\\MENUS\\Retratos\\FotoGest.fbs";
-	const char* general =
-		"D:\\Husam\\Games\\CSF\\data\\Ambush\\MENUS\\Retratos\\FotoGeneral.fbs";
-	const char* red =
-		"D:\\Husam\\Games\\Commandos Strike Force C\\Config\\Red.cfg";
-	const char* Punteria =
-		"D:\\Husam\\Games\\Commandos Strike Force C\\Config\\Punteria.cfg";
-	const char* Ver =
-		"D:\\Husam\\Games\\Commandos Strike Force C\\Config\\JuegoVer.cfg";
-	const char* su =
-		"D:\\Husam\\Games\\CSF\\data\\Ambush\\Gfx\\1FU.sp";
-	const char* iconos =
-		"D:\\Husam\\Games\\CSF\\data\\Ambush\\Gfx\\iconos.txt";
-	const char* BBD =
-		"D:\\Husam\\Games\\CSF\\data\\Ambush\\BDD\\Anims.bdd";
-	const char * filepath = BBD;
-
-	
 	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
-	std::cout << "Opening  " << filepath << "\n";	
+	std::cout << "Opening  " << filepath << "\n";
+	
 	if(!file.is_open())
 	{
 		std::cout << "[" <<filepath <<  "] was not found !! \n";
 		return;
 	}
 
-	std::cout << "Sizeof(CSFFBSHeader) : " << sizeof(CSFFBSHeader) << "\n";
-	std::cout << "Sizeof(CSFFBSDataHeader) : " << sizeof(CSFFBSDataHeader) << "\n";
-	std::cout << "Sizeof(CSFFBSData) : " << sizeof(CSFFBSData) << "\n";
-	std::cout << "Sizeof(ListData)   : " << sizeof(ListData) << "\n";
 	// Get file size
 	file.seekg (0, file.end);
 	int length = file.tellg();
@@ -216,103 +195,90 @@ void Test()
 	CSFFBSHeader Header;
 	file.read((char*)&Header, sizeof(Header));
 
-	std::cout << "Tag          : " << Header.Tag << "\n";
-	std::cout << "Version    : " << Header.Version << "\n";
-	std::cout << "NumberOfItems: " << Header.NumberOfItems << "\n";
-	std::cout << "Total Count  : " << Header.StringEntryCount << "\n";
-	std::cout << "String Count : " << Header.StringValueCount << "\n";
-	std::cout << "--------------------------------------\n";
-	file.seekg(Header.NumberOfItems*12 + 24 );
+	// std::cout << "Tag          : " << Header.Tag << "\n";
+	// std::cout << "Version    : " << Header.Version << "\n";
+	// std::cout << "NumberOfItems: " << Header.NumberOfItems << "\n";
+	// std::cout << "Total Count  : " << Header.StringEntryCount << "\n";
+	// std::cout << "String Count : " << Header.StringValueCount << "\n";
+	// std::cout << "--------------------------------------\n";
+	
+	// Get the strings first so you don't need to store the data in a container 
+	file.seekg(Header.NumberOfItems * 12 + 24 );
 	std::vector<char *> Entries; Entries.reserve(Header.StringEntryCount);
 	std::vector<char *> Values; Values.reserve(Header.StringValueCount);
 	int size = 0;
 	for(int a = 0; a < Header.StringEntryCount ; a++)
 	{
 		file.read((char*)&size, 4);
-		char* name = new char[size];
-		if (size == 0)
-			memset(name, '\0', size);
-		else
-			file.read(name,size);
+		char* name = new char[size + 1];
+		file.read(name,size);
 		Entries.push_back(name);
 	}
 	for(int a = 0; a < Header.StringValueCount ; a++)
 	{
 		file.read((char*)&size, 4);
-		char* name = new char[size];
+		char* name = new char[size + 1];
 		if (size == 0)
-			memset(name, '\0', size);
+			name[0] = '\0';
 		else
 			file.read(name,size);
 		Values.push_back(name);
 	}
 	
 	file.seekg(24);
-	std::vector<CSFFBSData> vData;
-	std::vector<CSFFBSDataHeader> vDataHeader;
 	int numberOfItems = 0;
 	const char* outputPath = "Test.txt"  ;
 	std::fstream outfile(outputPath, std::fstream::out);
-	
+	bool insidePair = false;
+	bool flipTheBool = false;
+	int numberofPair = 0;
 	for(int a = 0; a < Header.NumberOfItems; a++) 
 	{
+		CSFFBSData data;
+		file.read((char*)&data, sizeof(data));
+		if(data.Type == HEADER)
 		{
-			ListData data;
-			file.read((char*)&data, sizeof(data));
-			// std::cout << data.Indicator << " "
-			// 		  << data.IntegerValue << " "
-			// 		  << data.Type << "\n";
-			bool insidePair = false;
-			bool flipTheBool = false;
-			int numberofPair = 0;
-			if(data.IntegerValue != -1)
+			std::cout << Entries[data.ItemStringIndex] << " ";	
+		}
+		else // if(data.Type == 0)
+		{
+			if(data.Type == STRING)
+				std::cout << "\"" <<  Values[data.StringIndex] << "\"";
+			else if(data.Type == INT)
+				std::cout <<  data.IntegerValue;
+			else if(data.Type == FLOAT)
+				std::cout << std::fixed << data.FloatValue;		
+			else if(data.Type == LIST)
 			{
-				if(numberofPair == 0)
-					insidePair = false;
-				
-				if(data.Type == STRING)
-					std::cout << "\"" <<  Values[data.StringIndex] << "\"";
-				else if(data.Type == INT)
-					std::cout <<  data.IntegerValue;
-				else if(data.Type == FLOAT)
-					std::cout << data.FloatValue;
-				//else if(data.Type == PAIR)
-				else if(data.Type == LIST)
-				{
-					if(data.ItemStringIndex != -1)
-						std::cout << Entries[data.ItemStringIndex] << "\n";
-				}
-				else if(data.Type == PAIR)
-				{
-					std::cout << Entries[data.ItemStringIndex] << " ";
-					numberofPair = data.InnerItemCount; 
-					flipTheBool = true;
-				}
-				if(insidePair)
-				{
-					std::cout << " ,";
-					numberofPair--;
-				}
+				if(data.ItemStringIndex != -1)
+					std::cout << Entries[data.ItemStringIndex] << "\n";
 				else
-					std::cout << "\n";
-				
-				if(flipTheBool)
-				{
-					insidePair = true;
-					flipTheBool = false;
-				}				
-				numberOfItems++;				
+					std::cout << "We hit that point\n";
 			}
-			//else if (data.Indicator == 0
-			if(data.IntegerValue == -1)
+			else if(data.Type == COLLECTION)
 			{
-				std::cout << Entries[data.ItemStringIndex] << " ";
+				std::cout << Entries[data.ItemStringIndex] << " (";
+				numberofPair = data.InnerItemCount; 
+				flipTheBool = true;
+				continue;
+			}
+
+
+			
+			if(numberofPair == 0)
+				std::cout << "\n";
+			else 
+			{
+				if (numberofPair == 1)
+					std::cout << ")\n";
+				else
+					std::cout << ", ";
+				numberofPair--;
 			}
 		}
 	}
 	
 
-	std::cout << "numberOfItems : "  << numberOfItems << "\n";
 	outfile << "]\n";
 	file.close();
 	outfile.close();
@@ -341,9 +307,9 @@ void CompressPAC(const char * folderPath)
 
 
 	std::cout << "Res Count = " << rescount << "\n";
-	long type = 1095450960;
+	//long type = 1095450960;
 	std::fstream outfile ("GlobalES.pak", std::fstream::out | std::fstream::binary);
-	PakHeader header = {type, 5,1, rescount};
+	PakHeader header = {"PAKA", 1, rescount};
 	outfile.write((char*)&header, sizeof(header));
 
 	long offset = 13;
@@ -412,7 +378,7 @@ int main(int argc, char** argv)
 		  break;
 	  case 't':
 	  case 'T':
-		  Test();
+		  ExtractCSFFBS(filePath);
 		  break;
 	  default:
 		  std::cout << "Unknown command [" << whattodo << "]\n" ;
