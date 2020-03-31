@@ -2,97 +2,20 @@
   main.cpp -- First try for Commando Strike force Pak files extractor
 */
 
-#include "main.h"
-#include "zlib.h"
-#include "zconf.h"
+#include "functions.h"
 
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <filesystem>
-#include <cassert>
 #include <stdio.h>
 #include <thread>
 #include <atomic>
 #include <chrono>
 #include <vector>
-#define LOGANDEXIT(x) { std::cout << x ; return 0;}
-#define ERRORANDEXIT(x) { std::cerr << x ; return 0;}
-#define assertm(exp, msg) assert((msg, exp))
 
 std::atomic<int> progress = 0;
 std::atomic<int> maxNum = 100;
-
-#define foreach(x) for(int a = 0; a < x ;  a++)
-
-
-void ProgressBar()
-{
-	while(progress < maxNum)
-	{
-		int barWidth = 70;
-		std::cout << "[";
-		float realPos = ((float)progress / maxNum);
-		int pos = int(barWidth * realPos);
-		for (int i = 0; i < barWidth; ++i) {
-			if (i < pos) std::cout << "=";
-			else if (i == pos) std::cout << ">";
-			else std::cout << " ";
-		}
-		std::cout << "] " << int(realPos* 100)  << " %\r";
-		std::cout.flush();
-	}
-}
-
-void zerr(int ret)
-{
-	std::cerr << "Unsuccesful decompression : ";
-	switch (ret) {
-	  case Z_ERRNO:
-		  if (ferror(stdin))
-			  std::cerr << "error reading stdin\n";
-		  if (ferror(stdout))
-			  std::cerr << "error writing stdout\n";
-		  break;
-	  case Z_STREAM_ERROR:
-		  std::cerr << "invalid compression level\n";
-		  break;
-	  case Z_DATA_ERROR:
-		  std::cerr << "invalid or incomplete deflate data\n";
-		  break;
-	  case Z_MEM_ERROR:
-		  std::cerr << "out of memory\n";
-		  break;
-	  case Z_VERSION_ERROR:
-		  std::cerr << "zlib version mismatch!\n";
-	}
-	std::cout << "ret : " << ret;
-	assertm(false, "Error While Decompression");
-}
-
-void decompress(char* source, int sourceSize, char* dest, int destSize)
-{
-
-	z_stream infstream;
-	infstream.zalloc = Z_NULL;
-	infstream.zfree = Z_NULL;
-	infstream.opaque = Z_NULL;
-	
-	infstream.avail_in = (unsigned int)sourceSize; // size of input
-	infstream.next_in = (Bytef*)source; // input char array
-	
-	infstream.avail_out = (unsigned int)destSize; // size of output
-	infstream.next_out = (Bytef*)dest; // output char array
-
-	// TODO(husam): handle errors comeing from  (inflate)
-	int ret = inflateInit(&infstream);
-	if(ret < Z_OK) zerr(ret);
-	ret = inflate(&infstream, Z_NO_FLUSH);
-	if(ret < Z_OK ) zerr(ret);
-	inflateEnd(&infstream);
-
-}
-
 
 bool ExtractPakFiles(const char * filepath)
 {
@@ -139,10 +62,6 @@ bool ExtractPakFiles(const char * filepath)
 		std::cout << " size: " << filedata.Size;
 		std::cout << " v1: " << /*std::hex <<*/ filedata.V1;
 		std::cout << " v2: " << /*std::hex << */filedata.V2 << std::dec;
-		// if(filedata.V2 == 29766566)
-		// 	std::cout << " Photo 256X256";
-		// else if(filedata.V2 == 29766561)
-		// 	std::cout << " Photo 64 x 64";
 		std::cout << "\n";
 		
 		
@@ -208,7 +127,7 @@ bool ExtractPakFiles(const char * filepath)
 	file.close();
 	return true;
 }
-
+// We Have script for that <3
 /*
   RPC FileFormat
   
@@ -254,47 +173,7 @@ bool RPCConvert(const char * filepath)
 	return true;
 }
 
-int ExtractCSFFBS(const char* filepath)
-{
-#if 0
-	std::cout << "Opening  " << filepath << "\n";
-	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
-
-	if (!file.is_open())
-		LOGANDEXIT("Error : cannot open " << filepath << "\n");
-	int filesize = std::filesystem::file_size(filepath);
-
-	CSFFBSHeader header = {0};
-	file.read((char*)&header, sizeof(CSFFBSHeader));
-
-	std::cout << "Header Tag = " << header.Tag << "\n";
-	std::cout << "Header Unknown = " << header.unknown1 << "\n";
-	std::cout << "Header Unknown = " << header.unknown2 << "\n";
-	std::cout << "Header Flag = " << (int)header.Flag;
-	file.close();
-#endif
-	return 0;
-}
-
-void PrintData(CSFFBSData& data)
-{
-	switch(data.type)
-	{
-	  case 327679:
-		  std::cout << "\tValue      : " << *((float*)(&data.value)) << "\n";
-		  break;
-	  case 262143:
-		  std::cout << "\tValue      : " << data.value << "\n";
-		  break;
-	  case 393215:
-		  std::cout << "\tValue      : String index " << data.value << " from string table\n";
-		  break;
-	  default:
-		  std::cout << "\tUnhandled Data type      : " << data.type << "\n";
-		  return;
-	}
-	std::cout << "\tType       : " << GetTypeFromCode(data.type) << "\n";
-}
+// @Incomplete(Husam):Parameter
 void Test()
 {
 	const char* gest =
@@ -309,7 +188,11 @@ void Test()
 		"D:\\Husam\\Games\\Commandos Strike Force C\\Config\\JuegoVer.cfg";
 	const char* su =
 		"D:\\Husam\\Games\\CSF\\data\\Ambush\\Gfx\\1FU.sp";
-	const char * filepath = Punteria;
+	const char* iconos =
+		"D:\\Husam\\Games\\CSF\\data\\Ambush\\Gfx\\iconos.txt";
+	const char* BBD =
+		"D:\\Husam\\Games\\CSF\\data\\Ambush\\BDD\\Anims.bdd";
+	const char * filepath = BBD;
 
 	
 	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
@@ -321,122 +204,131 @@ void Test()
 	}
 
 	std::cout << "Sizeof(CSFFBSHeader) : " << sizeof(CSFFBSHeader) << "\n";
-	std::cout << "Sizeof(CSFFBSSubHeader) : " << sizeof(CSFFBSSubHeader) << "\n";
 	std::cout << "Sizeof(CSFFBSDataHeader) : " << sizeof(CSFFBSDataHeader) << "\n";
 	std::cout << "Sizeof(CSFFBSData) : " << sizeof(CSFFBSData) << "\n";
+	std::cout << "Sizeof(ListData)   : " << sizeof(ListData) << "\n";
 	// Get file size
 	file.seekg (0, file.end);
 	int length = file.tellg();
 	file.seekg (0, file.beg);
 
-	
+
 	CSFFBSHeader Header;
 	file.read((char*)&Header, sizeof(Header));
 
-	std::cout << "Type         : " << Header.Type << "\n";
-	std::cout << "ListCount    : " << Header.ListCount << "\n";
-	std::cout << "Unknown 1    : " << Header.unknown1 << "\n";
+	std::cout << "Tag          : " << Header.Tag << "\n";
+	std::cout << "Version    : " << Header.Version << "\n";
+	std::cout << "NumberOfItems: " << Header.NumberOfItems << "\n";
 	std::cout << "Total Count  : " << Header.StringEntryCount << "\n";
 	std::cout << "String Count : " << Header.StringValueCount << "\n";
 	std::cout << "--------------------------------------\n";
-	
-	CSFFBSSubHeader SubHeader;
-	ListData listData;
-	file.read((char*)&SubHeader, sizeof(SubHeader));
-	std::cout << "Unknown 1    : " << SubHeader.Unknown1 << "\n";
-	std::cout << "Type         : " << GetTypeFromCode(SubHeader.Type) << "\n";
-	std::cout << "--------------------------------------\n";
-	
-	if(SubHeader.Unknown1 == 1) // if list
-	{
-		file.read((char*)&listData, sizeof(listData));
-		std::cout << "Unknown1     : " << listData.Unknown1 << "\n";
-		std::cout << "Item Count   : " << listData.InnerItemCount << "\n";
-		std::cout << "Unknown2     : " << listData.Unknown2 << "\n";
-	}
-
-	int ElementsToRead = 0;
-	if(SubHeader.Unknown1 == 1)
-		ElementsToRead = listData.InnerItemCount;
-	else
-		ElementsToRead = Header.StringEntryCount;
-	for(int a = 0; a < ElementsToRead ; a++) 
-	{
-		CSFFBSDataHeader dataHeader;
-		file.read((char*)&dataHeader, sizeof(dataHeader));
-		std::cout << "Unknown3    : " << dataHeader.Unknown3<< "\n";
-		std::cout << "Indecator    : " << dataHeader.Indecator<< "\n";
-		std::cout << "Serial       : " << dataHeader.Serial << "\n";
-
-		if(dataHeader.Indecator  == -1){
-			CSFFBSData data;
-			file.read((char*)&data, sizeof(data));
-			PrintData(data);
-
-		}  else if (dataHeader.Indecator  == 15){
-			std::cout << "Get the fuck out from here\n.... \n For now" ;
-			return;
-		} else {
-
-			CSFFBSData data;
-			for(int b = 0 ; b < dataHeader.Indecator; b++)
-			{
-				file.read((char*)&data, sizeof(data));
-				PrintData(data);
-			}
-
-		}
-	}
-    // this part is working well, we just need to find the offset to start reading the strings
-    // @incomplete(Husam):  this should also be aware that not all the strings is entries
-
-	// @Todo(Husam):  this needs to be tweaked because some files has multiple entires
-	//                with the same string
+	file.seekg(Header.NumberOfItems*12 + 24 );
 	std::vector<char *> Entries; Entries.reserve(Header.StringEntryCount);
 	std::vector<char *> Values; Values.reserve(Header.StringValueCount);
 	int size = 0;
 	for(int a = 0; a < Header.StringEntryCount ; a++)
 	{
-		char* name = new char[50];
 		file.read((char*)&size, 4);
+		char* name = new char[size];
 		if (size == 0)
-			memset(name, '\0', 50);
+			memset(name, '\0', size);
 		else
 			file.read(name,size);
-
 		Entries.push_back(name);
 	}
 	for(int a = 0; a < Header.StringValueCount ; a++)
 	{
-		char* name = new char[50];
 		file.read((char*)&size, 4);
+		char* name = new char[size];
 		if (size == 0)
-			memset(name, '\0', 50);
+			memset(name, '\0', size);
 		else
 			file.read(name,size);
-
 		Values.push_back(name);
 	}
 	
+	file.seekg(24);
+	std::vector<CSFFBSData> vData;
+	std::vector<CSFFBSDataHeader> vDataHeader;
+	int numberOfItems = 0;
+	for(int a = 0; a < Header.NumberOfItems; a++) 
+	{
+		{
+			ListData data;
+			file.read((char*)&data, sizeof(data));
+			// std::cout << data.Indicator << " "
+			// 		  << data.IntegerValue << " "
+			// 		  << data.Type << "\n";
+			bool insidePair = false;
+			bool flipTheBool = false;
+			int numberofPair = 0;
+			if(data.IntegerValue != -1)
+			{
+				if(numberofPair == 0)
+					insidePair = false;
+				
+				if(data.Type == STRING)
+					std::cout << "\"" <<  Values[data.StringIndex] << "\"";
+				else if(data.Type == INT)
+					std::cout <<  data.IntegerValue;
+				else if(data.Type == FLOAT)
+					std::cout << data.FloatValue;
+				//else if(data.Type == PAIR)
+				else if(data.Type == LIST)
+				{
+					if(data.ItemStringIndex != -1)
+						std::cout << Entries[data.ItemStringIndex] << "\n";
+				}
+				else if(data.Type == PAIR)
+				{
+					std::cout << Entries[data.ItemStringIndex] << " ";
+					numberofPair = data.InnerItemCount; 
+					flipTheBool = true;
+				}
+			   
+				if(insidePair)
+				{
+					std::cout << " ,";
+					numberofPair--;
+				}
+				else
+					std::cout << "\n";
+				
+				if(flipTheBool)
+				{
+					insidePair = true;
+					flipTheBool = false;
+				}				
+				numberOfItems++;				
+			}
+			//else if (data.Indicator == 0
+			if(data.IntegerValue == -1)
+			{
+				std::cout << Entries[data.ItemStringIndex] << " ";
+			}
+		}
+	}
+	// this part is working well, we just need to find the offset to start reading the strings
+	// @incomplete(Husam):  this should also be aware that not all the strings is entries
+
+	// @Todo(Husam):  this needs to be tweaked because some files has multiple entires
+	//                with the same string
+
 	
 	const char* outputPath = "Test.txt"  ;
 	std::fstream outfile(outputPath, std::fstream::out);
 
-	outfile << "[\n";
-	for(int a = 0; a < ElementsToRead; a++)
-	{
-		outfile << Entries[a] << "\n";
-	}
+	std::cout << "numberOfItems : "  << numberOfItems << "\n";
 	outfile << "]\n";
-	
 	file.close();
 	outfile.close();
 	for(int a = 0; a < Header.StringEntryCount ; a++)
 		if(Entries[a] != nullptr)
-			delete Entries[a];
+			delete[] Entries[a];
 	for(int a = 0; a < Header.StringValueCount ; a++)
 		if(Values[a] != nullptr)
-			delete Values[a];
+			delete[] Values[a];
+
 }
 
 void CompressPAC(const char * folderPath)
@@ -507,7 +399,7 @@ int main(int argc, char** argv)
 	// TODO(husam): make Usage usefull
 	if (argc < 3)
 		ERRORANDEXIT("Usage:" <<  argv[0] << " -<e/3/f>"  << " <filename>.pak\n");
-	
+
 	const char* whattodo = argv[1];
 	const char* filePath = argv[2];
 
@@ -523,10 +415,6 @@ int main(int argc, char** argv)
 		  break;
 	  case '3':
 		  RPCConvert(filePath);
-		  break;
-	  case 'f':
-	  case 'F':
-		  ExtractCSFFBS(filePath);
 		  break;
 	  case 't':
 	  case 'T':
