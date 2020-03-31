@@ -251,6 +251,9 @@ void Test()
 	std::vector<CSFFBSData> vData;
 	std::vector<CSFFBSDataHeader> vDataHeader;
 	int numberOfItems = 0;
+	const char* outputPath = "Test.txt"  ;
+	std::fstream outfile(outputPath, std::fstream::out);
+	
 	for(int a = 0; a < Header.NumberOfItems; a++) 
 	{
 		{
@@ -285,7 +288,6 @@ void Test()
 					numberofPair = data.InnerItemCount; 
 					flipTheBool = true;
 				}
-			   
 				if(insidePair)
 				{
 					std::cout << " ,";
@@ -308,15 +310,7 @@ void Test()
 			}
 		}
 	}
-	// this part is working well, we just need to find the offset to start reading the strings
-	// @incomplete(Husam):  this should also be aware that not all the strings is entries
-
-	// @Todo(Husam):  this needs to be tweaked because some files has multiple entires
-	//                with the same string
-
 	
-	const char* outputPath = "Test.txt"  ;
-	std::fstream outfile(outputPath, std::fstream::out);
 
 	std::cout << "numberOfItems : "  << numberOfItems << "\n";
 	outfile << "]\n";

@@ -4,3 +4,8 @@
 /data/
 /lib/zlib-1.2.11/
 /text.txt
+/*.hex
+/*.rar
+/*.txt
+/*.pak
+/*.cfg
