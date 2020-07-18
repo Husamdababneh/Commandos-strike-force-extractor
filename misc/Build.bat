@@ -29,7 +29,7 @@ goto :eof
 :Compile
 pushd bin-int
 echo Entering directory `bin-int'
-cl %~1  %Files% %~2  /link /LIBPATH:"..\lib\"
+cl %~1 %Files% %~2  /link /LIBPATH:"..\lib\"
 echo Leaving  directory `bin-int'
 popd
 EXIT %ERRORLEVEL%

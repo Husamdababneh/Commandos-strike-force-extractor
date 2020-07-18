@@ -1,0 +1,352 @@
+------------------------------------------
+-- Commandos: Strike Force RPC Importer --
+------------------------------------------
+
+rollout GameRender "RPC Importer" width:187 height:168
+(
+	GroupBox 'grp1' "About" pos:[6,3] width:174 height:76 align:#left
+	label 'label1' "Commandos: Strike Force" pos:[31,20] width:125 height:13 align:#left
+	label 'label2' "RPC Importer v1.23 2016/05/18" pos:[15,38] width:161 height:13 align:#left
+	label 'label3' "by lwd5099 && herbert3000" pos:[29,57] width:130 height:13 align:#left
+	
+	GroupBox 'grp2' "Import" pos:[6,84] width:174 height:76 align:#left
+	checkbox 'importHierarchy' "Import Object Hierarchy" pos:[23,102] width:139 height:19 align:#left
+	button 'importButton' "Import RPC" pos:[17,124] width:150 height:25 align:#left
+	
+	-- Read a C-String of a certain length
+	function ReadCString stream length = (
+		local str = ""
+		local b
+		for i = 1 to length do (
+			b = ReadByte stream
+			if b == 0 then (
+				fseek stream (length - i) #seek_cur
+				return str
+			)
+			str += bit.intAsChar b
+		)
+		return str
+	)
+	
+	on importButton pressed do
+	(
+		-- Open up a dialog box
+		RPCFileName = getOpenFileName caption:"Import RPC" \
+			types:"Commandos 4 RPC (*.rpc)|*.rpc|All Files (*.*)|*.*|"
+		
+		-- If user made a selection, begin importing
+		if RPCFileName != undefined then (
+			local currentPath = getFilenamePath RPCFileName
+			
+			-- Open the file
+			RPCStream = fopen RPCFileName "rb"
+			
+			local string_identifier = 16
+			
+			-- Check identifier
+			if (ReadLong RPCStream #unsigned) != string_identifier then (
+				messageBox "Not a valid RPC file!"
+			) else (
+				
+				local objects = #()
+				local models = #()
+				local skipped = #()
+				local model_transform = #()
+				local parents = #()
+				
+				fseek RPCStream 24 #seek_set
+				local num_models = ReadLong RPCStream #unsigned
+				fseek RPCStream 32 #seek_cur
+				local num_objects = ReadLong RPCStream #unsigned
+				
+				objects[num_objects] = 0	-- initialize array
+				
+				for i = 1 to num_objects do (
+					-- Read transformation matrix
+					local f = #()
+					for j = 1 to 12 do (
+						append f ( ReadFloat RPCStream )
+					)
+					local transformation = ( matrix3 [ f[1], f[2], f[3] ] [ f[4], f[5], f[6] ] [ f[7], f[8], f[9] ] [ f[10], f[11], f[12] ] )
+					
+					-- Fix rotation of root object
+					if i == 1 then (
+						rotate transformation (angleaxis -90 [1,0,0])
+					)
+					
+					-- Read parent and update coordinates
+					local parent = ( ReadLong RPCStream ) + 1
+					if parent != 0 then (
+						transformation *= model_transform[parent]
+					)
+					append parents parent
+					append model_transform transformation
+					
+					ReadLong RPCStream
+				)
+				
+				for i = 1 to num_objects do (
+					fseek RPCStream 12 #seek_cur	-- 03 00 00 00 ...
+					local section_type = ReadLong RPCStream #unsigned
+					
+					-- Skip unknown data
+					while section_type != 4294967040 do (
+						-- 1E 01 00 00 / 1F 01 00 00
+						local section_size = ReadLong RPCStream #unsigned
+						fseek RPCStream ( section_size + 4 ) #seek_cur
+						section_type = ReadLong RPCStream #unsigned
+					)
+					
+					-- 00 FF FF FF
+					fseek RPCStream 12 #seek_cur
+					local objName = "Dummy"
+					local hasName = ReadLong RPCStream #unsigned
+					if hasName == 1 then (
+						local id = ReadLong RPCStream #unsigned
+						local nameLength = ReadLong RPCStream #unsigned
+						if nameLength > 0 then (
+							objName = ReadCString RPCStream nameLength
+						)
+						
+						dummyObj = Dummy()
+						dummyObj.name = objName
+						dummyObj.transform = model_transform[i]
+						if parents[i] != 0 and importHierarchy.checked then (
+							dummyObj.parent = objects[parents[i]]
+						)
+						objects[i] = dummyObj
+					)
+					
+					if i == 1 and importHierarchy.checked then (
+						dummyObj = Dummy()
+						dummyObj.name = "Root"
+						dummyObj.transform = model_transform[i]
+						objects[i] = dummyObj
+					)
+				)
+				
+				fseek RPCStream 28 #seek_cur	-- 1A 00 00 00 ...
+				
+				for m = 1 to num_models do (
+				
+					--format "[DEBUG] Model: %, stream position: %\n" m ( ftell RPCStream as integer )
+					
+					local filename = RPCFileName + "_" + ( m as string ) + ".obj"
+					
+					-- local fp = openFile filename mode:"wt"
+					-- DEBUG: Don't write data to OBJ files
+					local fp = stringstream""
+					
+					local objFileName = Filenamefrompath RPCFileName
+					format "mtllib ./%.mtl\n" objFileName to:fp
+					
+					ReadLong RPCStream	-- 0F 00 00 00
+					local section_size = ReadLong RPCStream #unsigned
+					fseek RPCStream 16 #seek_cur
+					
+					local unknown1 = ReadShort RPCStream #unsigned
+					local hasUV = ReadShort RPCStream #unsigned
+					
+					if hasUV == 0 then (
+						-- Skip model
+						fseek RPCStream ( section_size - 16 ) #seek_cur
+						append skipped 1
+						continue
+					)
+					append skipped 0
+					
+					local num_faces = ReadLong RPCStream #unsigned
+					local num_vertices = ReadLong RPCStream #unsigned
+					ReadLong RPCStream
+					
+					local texcoords = #()
+					local Faces = #()
+					local faceMaterialIDs = #()
+					
+					for i = 1 to num_vertices do (
+						local u = ReadFloat RPCStream 
+						local v = ( 1.0 - ( ReadFloat RPCStream ) )
+						append texcoords [ u, v, 0 ]
+					)
+					
+					for i = 1 to num_faces do (
+						local index1 = ( ( ReadShort RPCStream #unsigned ) + 1 )
+						local index2 = ( ( ReadShort RPCStream #unsigned ) + 1 )
+						local faceMat = ( ( ReadShort RPCStream #unsigned ) + 1 )
+						local index3 = ( ( ReadShort RPCStream #unsigned ) + 1 )
+						append Faces [ index1, index3, index2 ]
+						append faceMaterialIDs faceMat
+					)
+					
+					fseek RPCStream 24 #seek_cur
+					
+					format "%\n" num_vertices to:fp
+					
+					local vertex_array = #()
+					local vertex_normal = #()
+					
+					for i = 1 to num_vertices do (
+						local x = ReadFloat RPCStream
+						local y = ReadFloat RPCStream
+						local z = ReadFloat RPCStream
+						
+						append vertex_array [ x, y, z ]
+						
+						format "v % % %\n" x y z to:fp
+					)
+					format "\n" to:fp
+					
+					for i = 1 to num_vertices do (
+						local vnx = ReadFloat RPCStream
+						local vny = ReadFloat RPCStream
+						local vnz = ReadFloat RPCStream 
+						
+						append vertex_normal [ vnx, vny, vnz ]
+						
+						format "vn % % %\n" vnx vny vnz to:fp
+					)
+					format "\n" to:fp
+					
+					for i = 1 to num_vertices do (
+						format "vt % % %\n" texcoords[i][1] texcoords[i][2] texcoords[i][3] to:fp
+					)
+					format "\n" to:fp
+					
+					fseek RPCStream 24 #seek_cur
+					
+					local num_texture = ReadLong RPCStream #unsigned
+					
+					fseek RPCStream ( 4 * num_texture) #seek_cur	--- skip FFFFFFFF
+					
+					local newMaterial = multimaterial numsubs:num_texture
+					meditmaterials[1] = newMaterial
+					
+					for i = 1 to num_texture do (
+						ReadLong RPCStream	-- 07 00 00 00
+						local section_size = ReadLong RPCStream #unsigned
+						fseek RPCStream 76 #seek_cur
+						local num_texlong = ReadLong RPCStream #unsigned
+						ReadLong RPCStream	-- 37 00 02 1C
+						local texture_name = ( ReadCString RPCStream num_texlong )
+						fseek RPCStream (section_size - num_texlong - 80) #seek_cur
+						
+						local texFilename = ( currentPath + "textures\\" + texture_name + ".dds" )
+						if (doesFileExist texFilename == false) then (
+							texFilename = ( currentPath + "textures\\" + texture_name + ".png" )
+						)
+						
+						-- Assign Bitmap
+						newMaterial[i] = standard name:texture_name
+						newMaterial[i].diffuseMap = BitmapTexture()
+						newMaterial[i].diffuseMap.name = texture_name
+						newMaterial[i].diffuseMap.filename = texFilename
+						
+						-- Show Map in Viewport
+						showTextureMap newMaterial[i] true
+					)
+					
+					ReadLong RPCStream	-- 03 00 00 00
+					local section_size = ReadLong RPCStream #unsigned
+					fseek RPCStream (section_size + 4) #seek_cur
+					
+					/* 
+					fseek RPCStream 24 #seek_cur
+					
+					local vvfaces = #() 
+					
+					local num_faceid_group = ReadLong RPCStream #unsigned 
+					local num_faceid = ReadLong RPCStream #unsigned
+					
+					local num_faceid_a = ReadLong RPCStream #unsigned
+					local num_faceid_b = ReadLong RPCStream #unsigned
+					
+					for i = 1 to num_faceid do (
+						local fuv1 = ( ( ReadLong RPCStream #unsigned ) + 1 )
+						append vvfaces fuv1
+					)
+					*/ 
+					
+					format "%\n" num_faces to:fp
+					
+					for i = 1 to num_faces do (
+						format "usemtl %\n" faceMaterialIDs[i] to:fp
+						format "f %/%/% %/%/% %/%/%\n" Faces[i][1] Faces[i][1] Faces[i][1] Faces[i][2] Faces[i][2] Faces[i][2] Faces[i][3] Faces[i][3] Faces[i][3] to:fp
+					)
+					
+					-- Close OBJ file
+					close fp
+					
+					local name = filenameFromPath RPCFileName
+					
+					-- Construct the mesh object
+					local newMesh = mesh name:("Mesh" + m as string) pos:[0,0,0] \
+						vertices:vertex_array faces:faces material:newMaterial
+					
+					-- Set face material IDs
+					for i = 1 to faceMaterialIDs.count do (
+						setFaceMatID newMesh i faceMaterialIDs[i]
+					)
+					
+					-- Add texcoords
+					setNumTVerts newMesh texcoords.count
+					
+					for i = 1 to texcoords.count do (
+						setTVert newMesh i texcoords[i]
+					)
+					
+					-- Build texcoord faces
+					buildTVFaces newMesh
+					
+					-- Set texcoord faces
+					for i = 1 to Faces.count do (
+						setTVFace newMesh i Faces[i]
+					)
+					
+					-- Update mesh
+					update newMesh
+					
+					append models newMesh
+				)
+			)
+			
+			for m = 1 to num_models do (
+				ReadLong RPCStream
+				local section_size = ReadLong RPCStream #unsigned
+				fseek RPCStream 16 #seek_cur
+				local info_id = ( ReadLong RPCStream #unsigned ) + 1
+				local model_id = ( ReadLong RPCStream #unsigned ) + 1
+				fseek RPCStream (section_size - 20) #seek_cur
+				
+				--format "[DEBUG] Info ID: %, Model ID: %\n" info_id model_id
+				
+				if skipped[m] == 0 then (
+					-- Move the model to the correct position
+					models[model_id].transform = model_transform[info_id]
+					objects[info_id] = models[model_id]
+				) else (
+					objects[info_id] = Dummy()
+					objects[info_id].name = "Skipped"
+				)
+			)
+			
+			if importHierarchy.checked then (
+				for i = 1 to num_objects do (
+					if objects[i] == undefined then (
+						dummyObj = Dummy()
+						dummyObj.name = "undefined"
+						objects[i] = dummyObj
+					)
+					if parents[i] != 0 then (
+						objects[i].parent = objects[parents[i]]
+					)
+				)
+			)
+			
+			-- Close the file stream
+			fclose RPCStream
+			
+			max views redraw
+		)
+	)
+)
+CreateDialog GameRender 187 168 25 25

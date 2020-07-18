@@ -80,6 +80,25 @@ void decompress(char* source, int sourceSize, char* dest, int destSize)
 
 }
 
+extern const char * GetWhere(long code)
+{
+	switch(code)
+	{
+	  case GFX:
+		  return "GFX";
+	  case MENUS:
+		  return "MENUS";
+	  case MAPS:
+		  return "MAPS";
+	  case BDD:
+		  return "BDD";
+	  case MODELS:
+		  return "MODELS";
+	  default:
+		  return  "Unknown";
+	}
+}
+
 extern const char * GetTypeFromCode(int code)
 {
 	switch(code)
@@ -100,3 +119,4 @@ extern const char * GetTypeFromCode(int code)
 		  return  "Unknown Data type";
 	}
 }
+

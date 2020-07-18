@@ -19,12 +19,27 @@ enum : short
 	STRING        = 5 
 };
 
+
+enum  : long
+{
+	GFX    = 0x1c633a1,
+	MENUS  = 0x1c633a6,
+	MAPS   = 0x1c633ac,
+	MODELS = 0x1c633a7,
+	BDD    = 0x1c633af
+};
+
 struct PakHeader
 {
-	char Tag[6];
-	// Padding
+	char Tag[4];
+	long IDK;
 	long Version;
 	long ResNum;
+};
+
+enum : short
+{
+	UNKNOWN_TYPE = 0
 };
 
 struct FilesData
@@ -33,10 +48,7 @@ struct FilesData
 	long ROFF;
 	long Size;
 	long Unknown1;
-	short C601;
-	std::byte ThirtyThree;
-	std::byte Unknown2;
-	//short Unknown2;
+	long WhereItIs; // ?? 
 };
 
 struct CSFFBSHeader
@@ -63,4 +75,13 @@ struct CSFFBSData
 	};
 	short ItemStringIndex;
 	short Type;
+};
+
+struct CSFFBSBrackets
+{
+	std::stack<int> col;
+	std::stack<int> arr;
+	std::stack<int> turn2;
+
+	bool turn = false; // true -> arr , false -> col
 };
