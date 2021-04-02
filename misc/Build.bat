@@ -32,7 +32,7 @@ echo Entering directory `bin-int'
 cl %~1 %Files% %~2  /link /LIBPATH:"..\lib\"
 echo Leaving  directory `bin-int'
 popd
-EXIT %ERRORLEVEL%
+goto :eof
 
 :Clean
 REM Todo
@@ -40,4 +40,4 @@ echo test
 goto :eof
 
 :eof
-EXIT %ERRORLEVEL%
+REM EXIT %ERRORLEVEL%
