@@ -7,6 +7,24 @@
 
 #pragma once
 
+#include <stdint.h>
+
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t  s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef float  f32;
+typedef double  f64;
+
+typedef float  float32;
+typedef double float64;
+
 #include <iostream>
 #include <cstddef>
 enum : short
@@ -45,7 +63,7 @@ enum : short
 struct FilesData
 {
 	char Filename[120];
-	long ROFF;
+	long ROFF;// resouce offset in file 
 	long Size;
 	long Unknown1;
 	long WhereItIs; // ?? 
@@ -82,6 +100,13 @@ struct CSFFBSBrackets
 	std::stack<int> col;
 	std::stack<int> arr;
 	std::stack<int> turn2;
-
+	
 	bool turn = false; // true -> arr , false -> col
+};
+
+#pragma warning(disable: 4200)
+
+struct SString {
+	u32 size;
+	u8 str[];
 };
