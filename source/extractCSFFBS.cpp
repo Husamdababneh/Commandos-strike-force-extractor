@@ -42,33 +42,33 @@ void ExtractCSFFBS(const char *filepath)
 			CSFFBSData d = data[i];
 			switch(d.Type)
 			{
-				case HEADER: 
+				case CSF_HEADER: 
 				{
 					printf("%s\n", entries_strings[d.ItemStringIndex]);
 					break;
 				}
-				case INT: 
+				case CSF_INT: 
 				{
 					printf("%d\n", d.IntegerValue);
 					break;
 				}
-				case FLOAT: 
+				case CSF_FLOAT: 
 				{
 					printf("%f\n", d.FloatValue);
 					break;
 				}
-				case STRING: 
+				case CSF_STRING: 
 				{
 					printf("%s\n", values_strings[d.StringIndex]);
 					break;
 				}
-				case COLLECTION: 
+				case CSF_COLLECTION: 
 				{
 					//print_coll(&data[i], i + 1, d.InnerItemCount);
 					printf("(\n", entries_strings[d.StringIndex]);
 					break;
 				}
-				case LIST: 
+				case CSF_LIST: 
 				{
 					printf("[\n", entries_strings[d.StringIndex]);
 					break;

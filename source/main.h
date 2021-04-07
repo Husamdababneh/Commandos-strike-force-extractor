@@ -27,14 +27,15 @@ typedef double float64;
 
 #include <iostream>
 #include <cstddef>
+
 enum : short
 { 
-	HEADER        = 0,
-	COLLECTION    = 1,
-	LIST          = 2,
-	INT           = 3,
-	FLOAT         = 4,
-	STRING        = 5 
+	CSF_HEADER        = 0,
+	CSF_COLLECTION    = 1,
+	CSF_LIST          = 2,
+	CSF_INT           = 3,
+	CSF_FLOAT         = 4,
+	CSF_STRING        = 5 
 };
 
 
@@ -60,13 +61,22 @@ enum : short
 	UNKNOWN_TYPE = 0
 };
 
-struct FilesData
+struct FilesMetaData
 {
-	char Filename[120];
-	long ROFF;// resouce offset in file 
-	long Size;
-	long Unknown1;
-	long WhereItIs; // ?? 
+	u8* filename;
+	// resouce offset in file -> first you have to get the first offset by looping over the resources header, save the offset , addit to roff to get to the location of the resources
+	u32 roff;
+	u32 size;
+	
+	union {
+		u32 v1;
+		struct { u16 v1_1; u16 v1_2; };
+	};
+	
+	union {
+		u32 v2;
+		struct { u16 v2_1; u16 v2_2; };
+	};
 };
 
 struct CSFFBSHeader

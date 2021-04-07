@@ -35,23 +35,23 @@ void zerr(int ret)
 {
 	std::cerr << "Unsuccesful decompression : ";
 	switch (ret) {
-	  case Z_ERRNO:
-		  if (ferror(stdin))
-			  std::cerr << "error reading stdin\n";
-		  if (ferror(stdout))
-			  std::cerr << "error writing stdout\n";
-		  break;
-	  case Z_STREAM_ERROR:
-		  std::cerr << "invalid compression level\n";
-		  break;
-	  case Z_DATA_ERROR:
-		  std::cerr << "invalid or incomplete deflate data\n";
-		  break;
-	  case Z_MEM_ERROR:
-		  std::cerr << "out of memory\n";
-		  break;
-	  case Z_VERSION_ERROR:
-		  std::cerr << "zlib version mismatch!\n";
+		case Z_ERRNO:
+		if (ferror(stdin))
+			std::cerr << "error reading stdin\n";
+		if (ferror(stdout))
+			std::cerr << "error writing stdout\n";
+		break;
+		case Z_STREAM_ERROR:
+		std::cerr << "invalid compression level\n";
+		break;
+		case Z_DATA_ERROR:
+		std::cerr << "invalid or incomplete deflate data\n";
+		break;
+		case Z_MEM_ERROR:
+		std::cerr << "out of memory\n";
+		break;
+		case Z_VERSION_ERROR:
+		std::cerr << "zlib version mismatch!\n";
 	}
 	std::cout << "ret : " << ret;
 	assertm(false, "Error While Decompression");
@@ -59,7 +59,7 @@ void zerr(int ret)
 
 void decompress(char* source, int sourceSize, char* dest, int destSize)
 {
-
+	
 	z_stream infstream;
 	infstream.zalloc = Z_NULL;
 	infstream.zfree = Z_NULL;
@@ -70,32 +70,32 @@ void decompress(char* source, int sourceSize, char* dest, int destSize)
 	
 	infstream.avail_out = (unsigned int)destSize; // size of output
 	infstream.next_out = (Bytef*)dest; // output char array
-
+	
 	// TODO(husam): handle errors comeing from  (inflate)
 	int ret = inflateInit(&infstream);
 	if(ret < Z_OK) zerr(ret);
 	ret = inflate(&infstream, Z_NO_FLUSH);
 	if(ret < Z_OK ) zerr(ret);
 	inflateEnd(&infstream);
-
+	
 }
 
 extern const char * GetWhere(long code)
 {
 	switch(code)
 	{
-	  case GFX:
-		  return "GFX";
-	  case MENUS:
-		  return "MENUS";
-	  case MAPS:
-		  return "MAPS";
-	  case BDD:
-		  return "BDD";
-	  case MODELS:
-		  return "MODELS";
-	  default:
-		  return  "Unknown";
+		case GFX:
+		return "GFX";
+		case MENUS:
+		return "MENUS";
+		case MAPS:
+		return "MAPS";
+		case BDD:
+		return "BDD";
+		case MODELS:
+		return "MODELS";
+		default:
+		return  "Unknown";
 	}
 }
 
@@ -103,20 +103,20 @@ extern const char * GetTypeFromCode(int code)
 {
 	switch(code)
 	{
-	  case HEADER:
-		  return "Not Expected";
-	  case LIST:
-		  return "List";
-	  case INT:
-		  return "Int";
-	  case FLOAT:
-		  return "Float";
-	  case STRING:
-		  return "String";
-	  case COLLECTION:
-		  return "Pair";
-	  default:
-		  return  "Unknown Data type";
+		case CSF_HEADER:
+		return "Not Expected";
+		case CSF_LIST:
+		return "List";
+		case CSF_INT:
+		return "Int";
+		case CSF_FLOAT:
+		return "Float";
+		case CSF_STRING:
+		return "String";
+		case CSF_COLLECTION:
+		return "Pair";
+		default:
+		return  "Unknown Data type";
 	}
 }
 

@@ -20,6 +20,7 @@ class cProfiler
     }
 };
 
+#if 0
 bool ExtractPakFiles(const char * filepath)
 {
 	std::chrono::duration<float> timer;
@@ -153,6 +154,7 @@ void ExtractAllFiles(const char * filepath)
 		if(!std::filesystem::is_directory(p))
 		ExtractPakFiles(p.path().string().c_str());
 }
+#endif
 // We Have script for that <3
 /*
   RPC FileFormat
