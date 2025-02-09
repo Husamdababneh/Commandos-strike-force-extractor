@@ -7,45 +7,15 @@
 
 #pragma once
 
-#include <stdint.h>
+#define FSB_MAGIC "CSFFBS"
 
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef int8_t  s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-typedef float  f32;
-typedef double  f64;
-
-typedef float  float32;
-typedef double float64;
-
-#include <iostream>
-#include <cstddef>
-
-enum : short
-{ 
-	CSF_HEADER        = 0,
-	CSF_COLLECTION    = 1,
-	CSF_LIST          = 2,
-	CSF_INT           = 3,
-	CSF_FLOAT         = 4,
-	CSF_STRING        = 5 
-};
-
-
-enum  : long
+enum : long
 {
-	GFX    = 0x1c633a1,
-	MENUS  = 0x1c633a6,
-	MAPS   = 0x1c633ac,
-	MODELS = 0x1c633a7,
-	BDD    = 0x1c633af
+	GFX    = 0x1C633A1,
+	MENUS  = 0x1C633A6,
+	MAPS   = 0x1C633AC,
+	MODELS = 0x1C633A7,
+	BDD    = 0x1C633AF
 };
 
 struct PakHeader
@@ -64,7 +34,9 @@ enum : short
 struct FilesMetaData
 {
 	u8* filename;
-	// resouce offset in file -> first you have to get the first offset by looping over the resources header, save the offset , addit to roff to get to the location of the resources
+	// NOTE(Husam): resouce offset in file ->
+    //              first you have to get the first offset by looping over the resources header,
+    //              save the offset , add it to roff to get to the location of the resources
 	u32 roff;
 	u32 size;
 	
@@ -79,39 +51,51 @@ struct FilesMetaData
 	};
 };
 
+
+enum FBSType : u16
+{ 
+	CSF_KEY           = 0,
+	CSF_COLLECTION    = 1,
+	CSF_LIST          = 2,
+	CSF_INT           = 3,
+	CSF_FLOAT         = 4,
+	CSF_STRING        = 5 
+};
+
+
 struct CSFFBSHeader
 {
 	char Tag[6];
+    char padding[2];
 	// there is a 2 byte padding here ? 
 	long Version; // ?? maybe
-	long NumberOfItems; // * 12) + 24= Offset Of Where Data Begins -v
+	long NumberOfItems; // * 12) + 24 = Offset Of Where Data Begins -v
 	long StringEntryCount;
 	long StringValueCount;
 };
 
 struct CSFFBSData
 {
-	long Indicator;
+	u32 Indicator;
 	union {
 		// Data 
-		long IntegerValue;
+		u32 IntegerValue;
 		float FloatValue;
 		// String 
-		long StringIndex;
+		u32 StringIndex;
 		// List 
-		long InnerItemCount;
+		u32 InnerItemCount;
 	};
-	short ItemStringIndex;
-	short Type;
+	u16 ItemStringIndex;
+	FBSType type;
 };
 
-struct CSFFBSBrackets
+struct CSFFBSFile
 {
-	std::stack<int> col;
-	std::stack<int> arr;
-	std::stack<int> turn2;
-	
-	bool turn = false; // true -> arr , false -> col
+    CSFFBSHeader* header;
+    CSFFBSData*   data;
+    u8**        keys;
+    u8**        string_table;
 };
 
 #pragma warning(disable: 4200)
@@ -120,3 +104,5 @@ struct SString {
 	u32 size;
 	u8 str[];
 };
+
+

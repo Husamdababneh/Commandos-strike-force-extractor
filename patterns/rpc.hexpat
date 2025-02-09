@@ -1,95 +1,249 @@
-struct rpcHeader {
-	u32 str_id; // if the is not 16 for some reason, it's not good
-	padding [5 * 4];
-	u32 num_models;
-	padding [8 * 4];
-	u32 num_objects;
+
+enum BlockType : u32 {
+    INTEGER   = 0x00000001,  // 1
+    Type_3   = 0x00000003,  // 3
+    Type_14  = 0x0000000E,  // 14
+    Type_15  = 0x0000000F,  // 15
+    RPC_FILE = 0x00000010,  // RPC_FILE
+    Type_20  = 0x00000014,  // 20
+    MESH_DATA  = 0x0000001A   // 26
 };
 
-struct Objects { // todo
-	float trans[12];
-	u32 parent;
-	padding[4];
+struct Block {
+    BlockType type; // ?? idk
+    u32 size; // 
+    padding[4]; // 469893175 - 37 00 02 1C
+    if (type == BlockType::INTEGER) {
+        u32 data[size / sizeof(u32)];
+    }
 };
 
-struct Objects2 { // todo
-	padding[12];
-	u32 section_type; // this must equal 4294967040 (1E 01 00 00 / 1F 01 00 00)
-	padding[12];
-	u32 hasName;
-	if (hasName == 1){
-		u32 id;
-		u32 name_length;
-		if (nameLength > 0){
-			char name[];
-		}
-	}
+struct IdentificationBlock {
+    BlockType type; // ?? idk
+    u32 size; // 
+    padding[4]; // 469893175 - 37 00 02 1C
+    if (type != BlockType::RPC_FILE) {
+        u8 data[size];
+    }
 };
 
-struct vertex {
-	float X;
-	float Y;
-	float Z;
+struct IdentificationHeader {
+    BlockType type; // ?? idk
+    u32 size; // 
+    padding[4]; // 469893175 - 37 00 02 1C
 };
 
-struct texcoords {
-	float U;
-	float V;
+struct RpcHeader {
+    BlockType type;
+    u32 filesize;
+    padding[4]; // 469893175 - 37 00 02 1C
+
 };
 
-struct face {
-	u16 index1;
-	u16 index2;
-	u16 faceMat;
-	u16 index3;
+struct Transforms {
+    float matrix[12];
+    s32 _parent;
+    // padding[4];
+    u32 unknown;
 };
 
-struct Texture {
-	padding[4];
-	u32 section_size;
-	padding[76];
-	u32 num_texlong;
-	padding[4];
-	char texture_name[num_texlong];
-	padding[section_size - num_texlong - 80];
+struct Section0xFFFFFF00 {
+    u32 unkown1;
+    // u32 _3700021C;
+    padding[4]; // 469893175 - 37 00 02 1C
+    u32 unknown2;
+    u32 hasName;
+    if (hasName == 1) {
+        u32 id;
+        u32 len;
+        char name[len];
+    }            
 };
+
+
+struct Object {
+    u32 type; // ?? idk
+    u32 size; // 
+    padding[4]; // 469893175 - 37 00 02 1C
+    u8 data[size];
+};
+
+struct Texcoords {
+    float U;
+    float V;
+};
+
+struct Vertex3 {
+    float x,y,z;
+};
+
+struct Face {
+    u16 index1;
+    u16 index2;
+    u16 faceMat;
+    u16 index3;
+};
+
+
+
+struct theOneHundredByteStruct {
+    u32 unknown1;
+    u32 unknown2;
+    
+    padding[4]; // 469893175 - 37 00 02 1C
+    u32 unknown3;
+    u32 unknown4;
+    u32 unknown5;
+    
+    padding[4]; // 469893175 - 37 00 02 1C
+    u32 unknown6;
+    u32 unknown7;
+    
+    padding[4]; // 469893175 - 37 00 02 1C
+    u32 unknown8;
+    u32 unknown9;
+    u32 unknown10;
+    
+    padding[4]; // 469893175 - 37 00 02 1C
+    u32 unknown11;
+    u32 unknown12;
+    
+    padding[4]; // 469893175 - 37 00 02 1C
+    u32 unknown13_[8];
+    u8 unknown[100 - (4 * 25)];
+};
+
+
+#define ONEZEROZEROSTRUCT true
+
+struct TextureData {
+    IdentificationHeader header;
+    
+    //IdentificationHeader header2;
+       
+    u8 data[header.size];
+};
+
+struct StringView {
+    u32 size;
+    char string[size];
+    u32 unknown1;
+    u32 unknown2;
+    u32 unknown3;
+};
+
+struct StringTable {
+    u32 count;
+    StringView strings[count];
+};
+
+
+struct AfterTextures {
+    IdentificationHeader meta1;
+        IdentificationHeader meta2;
+        u32 unknown1;
+        u32 unknown2;
+        u32 unknown3;
+        u32 unknown4;
+        u8 data[meta2.size - 16];
+        
+        IdentificationHeader meta3;
+        u8 data2[meta3.size];
+        // StringTable strings;
+};
+
+
 
 struct Model { // todo
-	u32 idk;
-	u32 section_size;
-	padding[16];
-	u16 unknown1;
-	u16 hasUV;
-	if (hasUV == 0){ // skip model
-		padding[section_size - 16];
-	}
-	u32 num_faces;
-	u32 num_vertices;
-	padding[4];
-	texcoords UVs[num_vertices];
-	face      faces[num_faces];
-	padding[24];
-	vertex vertices[num_vertices];
-	vertex normals[num_vertices];
-	padding[24];
-	u32 num_texture;
-	padding[4 * num_texture];
-	Texture textures[num_texture];
-	u32 ppadding;
-	u32 section_size2;
-	padding[section_size2 + 4];
-	
+    IdentificationHeader meta1;
+    IdentificationHeader meta2;
+
+    if (false) {
+        u32 something;
+        u32 num_faces;
+        u32 num_vertices;
+        u32 unknown3; // num_textures?
+        
+        Texcoords uvs[num_vertices];
+        Face faces[num_faces];
+        padding[24];
+        Vertex3 vertcies[num_vertices];
+        Vertex3 vertex_normals[num_vertices];
+    } else {
+        u8 d[meta2.size];
+    }
+    
+    IdentificationHeader meta3;
+    IdentificationHeader meta4;
+
+    u32 texture_count;
+    padding[4];
+    //padding[texture_count * 4]; /// FF * texture_count ?? 
+    TextureData textures[texture_count];   
+    AfterTextures at;
 };
 
-struct rpcFile {
-	rpcHeader header;
-	if (header.num_objects > 0) {
-		Objects objects[header.num_objects];
-		Objects2 o2[header.num_objects];
-		padding[28]; // i think this is a wrong place ?? but let's try
-	}
-	if (header.num_models > 0){
-		Model models[header.num_models];
-	}
+
+
+struct Model2 {
+    IdentificationHeader header;
+    //    IdentificationHeader header2;
+    //    u32 info_id;
+    //    u32 model_id;
+    u8 a[header.size];
+    
 };
-rpcFile file @ 0x00;
+
+struct NObjects {
+    IdentificationHeader header1;
+    u8 data[header1.size];
+};
+
+struct RpcFile {
+    RpcHeader header;
+    Block b1;
+        
+        IdentificationHeader block2Header;
+            IdentificationHeader block21Header;
+                u32 num_objects;
+                Transforms transforms[num_objects];
+                NObjects objects[num_objects];
+       
+        IdentificationHeader block3Header;
+            IdentificationHeader block31Header;
+            u32 num_models;
+            Model models[num_models];
+            Model2 model[num_models];
+            
+       // IdentificationBlock block4Header;
+        
+      //IdentificationHeader lastBlock;
+};
+
+struct SizedBlock {
+    u32 type; // maybe ?? 
+    u32 size;
+    padding[4];
+    u32 something;
+    u32 something2;
+    //u8 block[size];
+};
+
+struct RpcFile2 {
+    IdentificationBlock header;
+    IdentificationBlock section1; // section1
+    IdentificationBlock section2; // section1
+    IdentificationBlock section3; // section1
+    IdentificationBlock section4; // section1
+    IdentificationBlock section5; // section1
+    IdentificationBlock section6; // section1
+};
+
+RpcFile file @0x0;
+//AfterTextures at @0x000017D8;
+// IdentificationBlock block @0x00000000;
+//IdentificationBlock block2 @0x0000000C;
+// RpcFile2 file2 @0x0;
+//IdentificationBlock block3 @0x00000024;
+
+// 0x000032F5
