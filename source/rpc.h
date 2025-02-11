@@ -20,6 +20,7 @@ typedef int32_t s32;
 typedef int64_t s64;
 
 typedef uint8_t b8;
+typedef int32_t b32;
 
 typedef float  f32;
 typedef double  f64;
@@ -403,8 +404,39 @@ const char* GetChunkTypeName(ChunkType chunkType) {
 struct RWHeader {
     ChunkType type;
     u32 size;
-    u32 version;
+    u32 libId;
 };
+
+
+struct RwRGBA {
+    u8 r,g,b,a;
+};
+
+
+struct RwV3d {
+    f32 x, y, z;
+};
+
+struct RpTriangle {
+    u16 vertex2, vertex1, materialId, vertex3;
+};
+
+struct RwSphere {
+    f32 x, y, z, radius; 
+};
+
+struct RwTexCoords {
+    f32 u,v;
+};
+
+template<typename T> 
+struct SizedChunk {
+    u32 size;
+    T* data;
+};
+
+using StringChunk = SizedChunk<char>;
+using ExtensionChunk = SizedChunk<u8>;
 
 
 struct Clump {
@@ -432,4 +464,112 @@ struct FrameList {
     s32        frame_count;
     FrameData* frame_data;
 };
+
+struct TextureInfo {
+    u32 filtering: 8;
+    u32 u:4;
+    u32 v:4;
+    b8 isUsingMipLevels: 1;
+    u32 pad: 15;
+};
+
+struct Texture {
+    TextureInfo info;
+    StringChunk textureName;
+    StringChunk alphaLayerName;
+    ExtensionChunk* extensions;
+};
+
+struct Material {
+    s32 flags; // unsued
+    RwRGBA color;
+    s32 unused;
+    s32 isTextured;
+    float ambient;
+    float specular;
+    float diffuse;
+    
+    // if isTextured {
+    Texture texture;
+};
+
+struct MaterialList {
+    u32 materialCount;
+    u8* materialIndecies;  //[materialCount * sizeof(u32)];
+    Material* materials;// [materialCount];
+};
+
+struct Morph {
+    RwSphere boundingSphere;
+    u32 hasVertices;
+    u32 hasNormals;
+    // if hasVertices
+    RwV3d vertices;
+    // if hasNormals
+    RwV3d* normals;
+};
+
+struct GeometryFormat {
+    b8 rpGEOMETRYTRISTRIP              : 1; // Is triangle strip (if disabled, it will be a triangle list)
+    b8 rpGEOMETRYPOSITIONS             : 1; // Vertex translation
+    b8 rpGEOMETRYTEXTURED              : 1; // Texture coordinates
+    b8 rpGEOMETRYPRELIT                : 1; // Vertex colors
+    b8 rpGEOMETRYNORMALS               : 1; // Store normals
+    b8 rpGEOMETRYLIGHT                 : 1; // Geometry is lit (dynamic and static)
+    b8 rpGEOMETRYMODULATEMATERIALCOLOR : 1; // Modulate material color
+    b8 rpGEOMETRYTEXTURED2             : 1; // Texture coordinates 2
+    u8 unused                          : 8; // Unused/reserved bits
+    u8 numTexSets                      : 8; // Texture count
+    u8 unused2                         : 7; // Unused/reserved bits
+    b8 rpGEOMETRYNATIVE                : 1; // Native Geometry
+};
+static_assert(sizeof(GeometryFormat) == 4, "GeometryFormat must only be of size 4");
+
+
+static
+void printGeometryFormat(GeometryFormat gf) {
+    printf("{ ");
+    if (gf.rpGEOMETRYTRISTRIP)              printf("TRISTRIP | ");
+    if (gf.rpGEOMETRYPOSITIONS)             printf("POSITIONS | ");
+    if (gf.rpGEOMETRYTEXTURED)              printf("TEXTURED | ");
+    if (gf.rpGEOMETRYPRELIT)                printf("PRELIT | ");
+    if (gf.rpGEOMETRYNORMALS)               printf("NORMALS | ");
+    if (gf.rpGEOMETRYLIGHT)                 printf("LIGHT | ");
+    if (gf.rpGEOMETRYMODULATEMATERIALCOLOR) printf("MODULATEMATERIALCOLOR | ");
+    if (gf.rpGEOMETRYTEXTURED2)             printf("TEXTURED2 | ");
+    if (gf.rpGEOMETRYNATIVE)                printf("NATIVE | ");
+    printf("numTexSets(%u) }", gf.numTexSets);
+}
+
+struct Geometry {
+    GeometryFormat format;
+    s32 numTriangles;
+    s32 numVertices;
+    s32 numMorphTargets;
+
+    // if Version < 0x34000
+    float ambient;
+    float specular;
+    float diffuse;
+
+    RwRGBA*       prelitcolor;// [numVertices];
+    RwTexCoords*  texCoords;  // [numVertices];
+    RpTriangle*   triangles;  // [numTriangles];
+
+    Morph* morphs;// [numMorphTargets]
+    MaterialList materialList;
+};
+
+struct GeometryList {
+    u32 geometryCount;
+    Geometry* geometries;
+};
+
+
+
+
+
+
+
+
 
