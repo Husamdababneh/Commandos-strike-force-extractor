@@ -31,7 +31,8 @@ REM goto :eof
 pushd bin-int
 echo Entering directory `bin-int'
 REM cl %~1 %Files% %~2  /link /LIBPATH:"..\lib\"
-cl %DebugFlags% %Files% %DLibs%  /link /LIBPATH:"..\lib\"
+REM /d1reportSingleClassLayoutTextureInfo
+cl %DebugFlags%  %Files% %DLibs%  /link /LIBPATH:"..\lib\"
 
 echo Leaving  directory `bin-int'
 popd

@@ -418,7 +418,7 @@ struct RwV3d {
 };
 
 struct RpTriangle {
-    u16 vertex2, vertex1, materialId, vertex3;
+    u16 vertex1, vertex2, materialId, vertex3;
 };
 
 struct RwSphere {
@@ -465,13 +465,40 @@ struct FrameList {
     FrameData* frame_data;
 };
 
-struct TextureInfo {
-    u32 filtering: 8;
-    u32 u:4;
-    u32 v:4;
-    b8 isUsingMipLevels: 1;
-    u32 pad: 15;
+
+enum RwTextureFilterMode {
+    TEXTUREFILTER_NAFILTERMODE = 0,      // Filtering disabled
+    TEXTUREFILTER_NEAREST = 1,           // Point-sampled
+    TEXTUREFILTER_LINEAR = 2,            // Bilinear filtering
+    TEXTUREFILTER_MIPNEAREST = 3,        // Nearest mipmap (point-sampled per pixel)
+    TEXTUREFILTER_MIPLINEAR = 4,         // Bilinear per-pixel mipmap
+    TEXTUREFILTER_LINEARMIPNEAREST = 5,  // Mipmap interpolation (point-sampled)
+    TEXTUREFILTER_LINEARMIPLINEAR = 6    // Trilinear filtering
 };
+
+enum RwTextureAddressMode {
+    TEXTUREADDRESS_NATEXTUREADDRESS = 0, // No tiling (undefined behavior)
+    TEXTUREADDRESS_WRAP = 1,             // Repeat (Tile in U/V direction)
+    TEXTUREADDRESS_MIRROR = 2,           // Mirror in U/V direction
+    TEXTUREADDRESS_CLAMP = 3,            // Clamp to edge
+    TEXTUREADDRESS_BORDER = 4            // Clamp to border color
+};
+
+
+
+struct TextureInfo {
+    union {
+        u32 info; // 4 bytes
+        struct {
+            u8 filtering        : 8;
+            u8 u                : 4;
+            u8 v                : 4;
+            u8 isUsingMipLevels : 1;
+        };
+    };
+};
+
+static_assert(sizeof(TextureInfo) == 4 && "This should be of size 4 bytes");
 
 struct Texture {
     TextureInfo info;
@@ -566,7 +593,12 @@ struct GeometryList {
 };
 
 
-
+struct Atomic {
+    unsigned int frameIndex;     // Index of the frame within the clump's frame list.
+    unsigned int geometryIndex;  // Index of geometry within the clump's geometry list.
+    unsigned int flags;          // See below.
+    unsigned int unused;         // Typically 0.
+};
 
 
 

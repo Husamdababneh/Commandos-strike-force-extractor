@@ -11,6 +11,8 @@
 struct StreamingBuffer {
     u8* content;
     u64 size;
+
+    u64 originalSize;
 };
 
 #define PeekType(buffer, type)    (type*)_PeekSize   (buffer, sizeof(type), __LINE__)
@@ -77,6 +79,19 @@ libraryIDUnpackBuild(u32 libid)
 
 
 void parse_chunk(StreamingBuffer* sb);
+void parse_atomic(StreamingBuffer* sb);
+
+void ConsumeExtensions(StreamingBuffer* sb);
+
+void ConsumeExtensions(StreamingBuffer* sb) {
+    RWHeader* extHeader = PeekType(sb, RWHeader);
+    while(extHeader->type == EXTENSION) {
+        ConsumeType(sb, RWHeader);
+        ConsumeSize(sb, extHeader->size);
+
+        extHeader = PeekType(sb, RWHeader);
+    }
+}
 
 Clump* parse_clump(StreamingBuffer* sb) {
     RWHeader clumpHeader = *ConsumeType(sb, RWHeader);
@@ -86,6 +101,17 @@ Clump* parse_clump(StreamingBuffer* sb) {
     printf("   lights_count : %d\n", clumpStruct->lights_count);
     printf("   cameras_count: %d\n", clumpStruct->cameras_count);
     return clumpStruct;
+}
+
+void parse_atomic(StreamingBuffer* sb) {
+    RWHeader atomicHeader = *ConsumeType(sb, RWHeader);
+    RWHeader atomicStructHeader = *ConsumeType(sb, RWHeader);
+    Atomic* atomic = ConsumeType(sb, Atomic);
+    printf("Atomic Struct:\n");
+    printf("  frameIndex  : %u\n", atomic->frameIndex);
+    printf("  geometryIndex: %u\n", atomic->geometryIndex);
+    printf("  flags        : %u\n", atomic->flags);
+    ConsumeExtensions(sb);
 }
 
 #if 0
@@ -160,13 +186,22 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
         if (format.rpGEOMETRYNATIVE == 0) {
             if (format.rpGEOMETRYPRELIT) {
                 ConsumeSize(sb, sizeof(RwRGBA) * numVertices);
+                printf("rpGEOMETRYPRELIT\n");
             }
             for (u32 texture = 0; texture < format.numTexSets; ++texture) {
-                RwTexCoords* uvs = PeekType(sb, RwTexCoords);
+                // RwTexCoords* uvs = PeekType(sb, RwTexCoords);
                 ConsumeSize(sb, sizeof(RwTexCoords) * numVertices);
             }
 
-            ConsumeSize(sb, sizeof(RpTriangle) * numTriangles);
+            printf("------------------------------------\n");
+            RpTriangle* triangles = (RpTriangle*)ConsumeSize(sb, sizeof(RpTriangle) * numTriangles);
+            for(u32 t = 0; t < numTriangles; ++t) {
+                printf("f %d %d %d\n",
+                       triangles[t].vertex1 + 1,
+                       triangles[t].vertex2 + 1,
+                       triangles[t].vertex3 + 1);
+                
+            }
         }
 
         for(u32 morph = 0; morph < numMorphTargets; ++morph) {
@@ -174,8 +209,25 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
             b32 hasVerts = *ConsumeType(sb, b32);
             b32 hasNormals = *ConsumeType(sb, b32);
 
-            if (hasVerts)   ConsumeSize(sb, sizeof(RwV3d) * numVertices);
-            if (hasNormals) ConsumeSize(sb, sizeof(RwV3d) * numVertices);
+            if (hasVerts)   {
+                RwV3d* vetrices = (RwV3d*)ConsumeSize(sb, sizeof(RwV3d) * numVertices);
+                for (u32 v = 0; v < numVertices; ++v){
+                    printf("v %f %f %f\n",
+                           vetrices[v].x,
+                           vetrices[v].y,
+                           vetrices[v].z);                    
+                };
+            }
+            if (hasNormals) {
+                // ConsumeSize(sb, sizeof(RwV3d) * numVertices);
+                RwV3d* vetrices = (RwV3d*)ConsumeSize(sb, sizeof(RwV3d) * numVertices);
+                for (u32 v = 0; v < numVertices; ++v){
+                    printf("vn %f %f %f\n",
+                           vetrices[v].x,
+                           vetrices[v].y,
+                           vetrices[v].z);                    
+                };
+            }
             
         }
 
@@ -192,20 +244,38 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
         ConsumeSize(sb, sizeof(s32) * materialsCount);
 
         for(u32 materialIt = 0; materialIt < materialsCount; ++materialIt) {
+            RWHeader materialHeader = *ConsumeType(sb, RWHeader);
             RWHeader materialStructHeader = *ConsumeType(sb, RWHeader);
             ConsumeType(sb, s32); // flags unused
             RwRGBA color = *ConsumeType(sb, RwRGBA);
             ConsumeType(sb, s32); // unused
             s32 isTextured = *ConsumeType(sb, s32); //
-            if (libraryIDUnpackVersion(materialStructHeader.size) > 0x30400) {
+            // if (libraryIDUnpackVersion(materialStructHeader.libId) > 0x30400) {
+            if (materialStructHeader.libId > 0x30400) {
                 f32  ambient  = *ConsumeType(sb, f32);
                 f32  specular = *ConsumeType(sb, f32);
                 f32  diffuse  = *ConsumeType(sb, f32);
             }
+
+            if (isTextured) {
+                RWHeader textureHeader = *ConsumeType(sb, RWHeader);
+                RWHeader textureStructHeader = *ConsumeType(sb, RWHeader);
+                TextureInfo textureInfo = *ConsumeType(sb, TextureInfo);
+                
+                // printf("Texture time 0x%llX %lld\n", sb->originalSize - sb->size, sizeof(TextureInfo));
+                RWHeader textureNameHeader = *ConsumeType(sb, RWHeader);
+                const char* textureName = (const char*)ConsumeSize(sb, textureNameHeader.size);
+                printf("   Texture Name : %s\n", textureName);
+                RWHeader textureAlphaLayerNameHeader = *ConsumeType(sb, RWHeader);
+                const char* textureAlphaLayerName = (const char*)ConsumeSize(sb, textureAlphaLayerNameHeader.size);
+                if(textureAlphaLayerNameHeader.size > 0)
+                    printf("   Texture Alpha Layer Name : %s\n", textureAlphaLayerName);                
+            }
+
+            ConsumeExtensions(sb);
+            
         }
         
-        RWHeader* extensionHeader = PeekType(sb, RWHeader);
-        // RWHeader materialListHeader = *ConsumeType(sb, RWHeader);
 
 #if 1
         // Idealy this should parse chunck but we know if there are things here they should be extensions
@@ -258,6 +328,9 @@ void parse_chunk(StreamingBuffer* sb) {
       case CLUMP: {
           parse_clump(sb);
       }break;
+      case ATOMIC: {
+          parse_atomic(sb);
+      }break;
 #if 0
       case STRUCT: {
           parse_struct(sb, header);
@@ -292,7 +365,7 @@ bool RpcConvertNew(const char* filepath) {
     StreamingBuffer sb;
     sb.content = filedata;
     sb.size = size;
-
+    sb.originalSize = size;
     while (sb.size > 0) {
         parse_chunk(&sb);
     }
