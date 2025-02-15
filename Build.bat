@@ -4,7 +4,7 @@ IF NOT EXIST .\bin-int mkdir bin-int
 IF NOT EXIST .\bin mkdir bin
 
 
-set CommonFlags=/Fe:..\bin\main.exe /std:c++17  -diagnostics:caret
+set CommonFlags=/Fe:..\bin\main.exe  -diagnostics:caret /std:c++20
 set ReleaseFlags=%CommonFlags% /EHsc /MD
 set DebugFlags=%CommonFlags% /W2 /Z7 /EHsc /DEBUG:FULL
 rem /MDd

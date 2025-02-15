@@ -152,11 +152,13 @@ CSFFBS_PRTINTER_PROC(print_list)
 
 void ExtractCSFFBS(const char *filepath)
 {
-	u8* filedata;
-	if (!read_entire_file(filepath, &(void*)filedata)){
+	void* filedataD;
+	if (!read_entire_file(filepath, &filedataD)){
 		printf("Couldn't read %.s", filepath);
 		exit(-1);
 	}
+
+    u8* filedata = (u8*)filedataD;
 
 	CSFFBSHeader *header = (CSFFBSHeader*)filedata;
     if (memcmp(FSB_MAGIC, header->Tag, sizeof(FSB_MAGIC)) != 0)

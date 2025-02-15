@@ -49,6 +49,10 @@ void* _ConsumeSize(StreamingBuffer* buffer, u64 size, u64 callerLine = 0)
     return result;
 }
 
+u64 report_position(StreamingBuffer* sb) {
+    return sb->originalSize - sb->size;
+}
+
 
 u32
 libraryIDPack(u32 version, u32 build)
@@ -89,6 +93,8 @@ void ConsumeExtensions(StreamingBuffer* sb) {
         ConsumeType(sb, RWHeader);
         ConsumeSize(sb, extHeader->size);
 
+        if (sb->size == 0) return;
+        
         extHeader = PeekType(sb, RWHeader);
     }
 }
@@ -97,9 +103,9 @@ Clump* parse_clump(StreamingBuffer* sb) {
     RWHeader clumpHeader = *ConsumeType(sb, RWHeader);
     RWHeader clumpStructHeader = *ConsumeType(sb, RWHeader);
     Clump* clumpStruct = ConsumeType(sb, Clump);
-    printf("   atomics_count: %d\n", clumpStruct->atomics_count);
-    printf("   lights_count : %d\n", clumpStruct->lights_count);
-    printf("   cameras_count: %d\n", clumpStruct->cameras_count);
+    // printf("   atomics_count: %d\n", clumpStruct->atomics_count);
+    // printf("   lights_count : %d\n", clumpStruct->lights_count);
+    // printf("   cameras_count: %d\n", clumpStruct->cameras_count);
     return clumpStruct;
 }
 
@@ -107,10 +113,10 @@ void parse_atomic(StreamingBuffer* sb) {
     RWHeader atomicHeader = *ConsumeType(sb, RWHeader);
     RWHeader atomicStructHeader = *ConsumeType(sb, RWHeader);
     Atomic* atomic = ConsumeType(sb, Atomic);
-    printf("Atomic Struct:\n");
-    printf("  frameIndex  : %u\n", atomic->frameIndex);
-    printf("  geometryIndex: %u\n", atomic->geometryIndex);
-    printf("  flags        : %u\n", atomic->flags);
+    // printf("Atomic Struct:\n");
+    // printf("  frameIndex  : %u\n", atomic->frameIndex);
+    // printf("  geometryIndex: %u\n", atomic->geometryIndex);
+    // printf("  flags        : %u\n", atomic->flags);
     ConsumeExtensions(sb);
 }
 
@@ -135,6 +141,8 @@ void parse_frame_list(StreamingBuffer* sb){
     u32 counter = 0;
     while(sbCheckPoint - sb->size < frameListHeader.size ) {
         RWHeader* extensionHeader = ConsumeType(sb, RWHeader);
+        printf("Streaming Buffer position [0x%llX]\n", report_position(sb));
+        RWHeader* extensionStruct = PeekType(sb, RWHeader);
         if (extensionHeader->type != EXTENSION) {
             printf("Expected EXTENSION chunk... exiting\n");
             exit(-1);
@@ -143,7 +151,7 @@ void parse_frame_list(StreamingBuffer* sb){
         ConsumeSize(sb, extensionHeader->size);
     }
 
-    if (counter) printf("  Found %d EXTENSION chunks in FrameListData\n", counter);
+    // if (counter) printf("  Found %d EXTENSION chunks in FrameListData\n", counter);
 }
 
 #if 0
@@ -176,12 +184,12 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
         s32 numVertices = *ConsumeType(sb, s32);
         s32 numMorphTargets = *ConsumeType(sb, s32);
 
-        printf("  format          : ");
-        printGeometryFormat(format);
-        printf("\n");
-        printf("  numTriangles    : %d\n", numTriangles);
-        printf("  numVertices     : %d\n", numVertices);
-        printf("  numMorphTargets : %d\n", numMorphTargets);
+        // printf("  format          : ");
+        // printGeometryFormat(format);
+        // printf("\n");
+        // printf("  numTriangles    : %d\n", numTriangles);
+        // printf("  numVertices     : %d\n", numVertices);
+        // printf("  numMorphTargets : %d\n", numMorphTargets);
 
         if (format.rpGEOMETRYNATIVE == 0) {
             if (format.rpGEOMETRYPRELIT) {
@@ -193,15 +201,16 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
                 ConsumeSize(sb, sizeof(RwTexCoords) * numVertices);
             }
 
-            printf("------------------------------------\n");
+            // printf("------------------------------------\n");
             RpTriangle* triangles = (RpTriangle*)ConsumeSize(sb, sizeof(RpTriangle) * numTriangles);
+#if STDOUT_OBJ
             for(u32 t = 0; t < numTriangles; ++t) {
                 printf("f %d %d %d\n",
                        triangles[t].vertex1 + 1,
                        triangles[t].vertex2 + 1,
                        triangles[t].vertex3 + 1);
-                
             }
+#endif // STDOUT_OBJ
         }
 
         for(u32 morph = 0; morph < numMorphTargets; ++morph) {
@@ -211,22 +220,26 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
 
             if (hasVerts)   {
                 RwV3d* vetrices = (RwV3d*)ConsumeSize(sb, sizeof(RwV3d) * numVertices);
+#if STDOUT_OBJ
                 for (u32 v = 0; v < numVertices; ++v){
                     printf("v %f %f %f\n",
                            vetrices[v].x,
                            vetrices[v].y,
                            vetrices[v].z);                    
                 };
+#endif // STDOUT_OBJ
             }
             if (hasNormals) {
                 // ConsumeSize(sb, sizeof(RwV3d) * numVertices);
                 RwV3d* vetrices = (RwV3d*)ConsumeSize(sb, sizeof(RwV3d) * numVertices);
-                for (u32 v = 0; v < numVertices; ++v){
+#if STDOUT_OBJ
+                for (u32 v = 0; v < numVertices; ++v){c
                     printf("vn %f %f %f\n",
                            vetrices[v].x,
                            vetrices[v].y,
                            vetrices[v].z);                    
                 };
+#endif // STDOUT_OBJ
             }
             
         }
@@ -250,7 +263,6 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
             RwRGBA color = *ConsumeType(sb, RwRGBA);
             ConsumeType(sb, s32); // unused
             s32 isTextured = *ConsumeType(sb, s32); //
-            // if (libraryIDUnpackVersion(materialStructHeader.libId) > 0x30400) {
             if (materialStructHeader.libId > 0x30400) {
                 f32  ambient  = *ConsumeType(sb, f32);
                 f32  specular = *ConsumeType(sb, f32);
@@ -265,11 +277,10 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
                 // printf("Texture time 0x%llX %lld\n", sb->originalSize - sb->size, sizeof(TextureInfo));
                 RWHeader textureNameHeader = *ConsumeType(sb, RWHeader);
                 const char* textureName = (const char*)ConsumeSize(sb, textureNameHeader.size);
-                printf("   Texture Name : %s\n", textureName);
+//                printf("   Texture Name : [%s]\n", textureName);
                 RWHeader textureAlphaLayerNameHeader = *ConsumeType(sb, RWHeader);
                 const char* textureAlphaLayerName = (const char*)ConsumeSize(sb, textureAlphaLayerNameHeader.size);
-                if(textureAlphaLayerNameHeader.size > 0)
-                    printf("   Texture Alpha Layer Name : %s\n", textureAlphaLayerName);                
+                // if(textureAlphaLayerNameHeader.size) printf("   Texture Alpha Layer Name : [%s]\n", textureAlphaLayerName);                
             }
 
             ConsumeExtensions(sb);
@@ -290,7 +301,7 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
             ConsumeSize(sb, extensionHeader->size);
         }
 
-        if (counter) printf("  Found %d EXTENSION chunks in FrameListData\n", counter);
+//        if (counter) printf("  Found %d EXTENSION chunks in FrameListData\n", counter);
 #else
         if ((sizeCheckPoint - sb->size) < header.size) {
             printf("Data Still left in chunk\n");
@@ -300,7 +311,7 @@ void parse_geometry_list(StreamingBuffer* sb, RWHeader header){
 
         
     }
-    printf("  Found %d geometries in the list\n", geometryList.geometryCount);
+//     printf("  Found %d geometries in the list\n", geometryList.geometryCount);
     // exit(0);
 };
 
@@ -355,21 +366,21 @@ void parse_chunk(StreamingBuffer* sb) {
 };
 
 bool RpcConvertNew(const char* filepath) {
-    u8* filedata;
-    u64 size = read_entire_file(filepath, &(void*)filedata);
+    void* filedata;
+    u64 size = read_entire_file(filepath, &filedata);
     if (!size){
 		printf("Couldn't read %.s", filepath);
 		exit(-1);
 	}
     
     StreamingBuffer sb;
-    sb.content = filedata;
+    sb.content = (u8*)filedata;
     sb.size = size;
     sb.originalSize = size;
     while (sb.size > 0) {
         parse_chunk(&sb);
     }
-    
+    printf("End of file %s----------------\n", filepath);
     return false;
 };
 

@@ -18,6 +18,7 @@
 #include "raw.cpp"
 
 #include "rpc.cpp"
+#include "gui.cpp"
 
 inline 
 u8* get_resource_pointer(u8* base, u32 roff)
@@ -113,11 +114,14 @@ void ExtractPakC(PakHeader* pak, FilesMetaData* files, u8* offset)
 void ExtractPakFiles2(const char * filepath)
 {
 	
-	u8* pak_file;
-	if (!read_entire_file(filepath, &(void*)pak_file)){
+	void* fileData;
+	if (!read_entire_file(filepath, &fileData)){
 		printf("Couldn't read %.s", filepath);
 		exit(-1);
 	}
+
+    u8* pak_file = (u8*)fileData;
+    
 	PakHeader* pak = (PakHeader*)pak_file;
 	printf("Tag = %.4s\n", pak->Tag);
 	printf("IDK = %d\n", pak->IDK);
@@ -192,13 +196,19 @@ void RPCConvert(const char* filepath) {
 int main(int argc, char** argv)
 {
     const char* exe_name = argv[0];
-	// TODO(husam): make Usage usefull
+
+    if (argc == 2 && argv[1][1] == 'w'){
+        gui();
+        return 0;
+    }
+    
+    // TODO(husam): make Usage usefull
 	if (argc < 3){
 		printf("Usage: %s -<e/3/f> <filename>.pak\n", exe_name);
         return 0;
     }
 
-	const char* whattodo = argv[1];
+	const char* whattodo = argv[1];    
 	const char* filePath = argv[2];
 	
 	switch(whattodo[1])
@@ -230,7 +240,10 @@ int main(int argc, char** argv)
           convertRaw(filePath);
           break;
       }
-      
+      case 'w':{
+          gui();
+          break;
+      };
       default:
           printf("Unknown command [%s]\n", whattodo);
           printf("Usage: %s -<e/3/f> <filename>.pak\n", exe_name);

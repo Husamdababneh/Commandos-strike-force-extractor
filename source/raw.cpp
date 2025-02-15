@@ -24,12 +24,14 @@ struct RawImage {
 
 void convertRaw(const char *filepath)
 {
-	u8* filedata;
-	if (!read_entire_file(filepath, &(void*)filedata)){
+	void* filedataD;
+	if (!read_entire_file(filepath, &filedataD)){
 		printf("Couldn't read %.s", filepath);
 		exit(-1);
 	}
 
+	u8* filedata = (u8*)filedataD;
+    
     RawImage image;
     image.width = *(filedata + 0);
     image.height = *(filedata + 4);
