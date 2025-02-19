@@ -8,8 +8,6 @@
 
 
 
-#include "gui.h"
-
 #pragma comment(lib,"Kernel32.lib")
 #pragma comment(lib,"User32.lib")
 #pragma comment(lib,"Gdi32.lib")
@@ -30,6 +28,7 @@
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "d3dcompiler.lib")
 
+#include "gui.h"
 
 
 
@@ -52,7 +51,7 @@ void InitGraphics(void);    // creates the shape to render
 void InitPipeline(void);    // loads and prepares the shaders
 void RenderFrame(void);
 void CleanD3D(void);         // closes Direct3D and releases memory
-
+Ui SetUpGUIData();
 
 b32 running = true;
 
@@ -163,6 +162,7 @@ void gui() {
 
     // set up and initialize Direct3D
     InitD3D(window);
+    // Ui ui = SetUpGUIData();
     
     while(running) {
         MSG message;
@@ -203,15 +203,18 @@ void RenderFrame(void)
     
     // do 3D rendering on the back buffer here
     // select which vertex buffer to display
-    UINT stride = sizeof(Vertex);
+    UINT stride = sizeof(UiRect);
     UINT offset = 0;
     devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
 
     // select which primtive type we are using
-    devcon->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // devcon->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
     // draw the vertex buffer to the back buffer
-    devcon->Draw(3, 0);
+    // devcon->Draw(4, 0);
+    devcon->DrawInstanced(4, 2, 0, 0);
+    
     // switch the back buffer and the front buffer
     swapchain->Present(0, 0);
 }
@@ -333,25 +336,80 @@ void CleanD3D()
     devcon->Release();
 }
 
+#if 0
+template<int MAX_NUM>
+constexpr auto generate_integer_list() {
+    // Use a struct to hold the C-style array
+    struct Result {
+        int UiVertex[MAX_NUM];
+    };
 
+    Result result{};
+    for (int i = 0; i < MAX_NUM; ++i) {
+        result.data[i] = (i * i); // Example computation: squares of indices
+    }
+    return result;
+}
+
+Ui SetUpGUIData() {
+    Ui result = {};
+
+    constexpr u32 MAX_UI_VERTICES = 12000;
+    constexpr u32 MAX_UI_INDICES  = 18000;
+    
+    D3D11_BUFFER_DESC vertexBufferDescriptor = {
+        .ByteWidth = sizeof(UiVertex) * MAX_UI_VERTICES,
+        .Usage = D3D11_USAGE_DYNAMIC,
+        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
+        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+        .MiscFlags = NULL,
+        .StructureByteStride = NULL
+    };
+
+    dev->CreateBuffer(&vertexBufferDescriptor, NULL, &pVBuffer);       // create the buffer
+
+
+
+    constexpr U32 tempIndecies[MAX_RECT_COUNT * 6] = ;
+    for (U64 i = 0, u = 0, r=0; r < MAX_RECT_COUNT; u += 4, i += 6, ++r)
+    {
+        tempIndecies[i + 0] = 0 + u;
+        tempIndecies[i + 1] = 1 + u;
+        tempIndecies[i + 2] = 2 + u;
+        tempIndecies[i + 3] = 2 + u;
+        tempIndecies[i + 4] = 3 + u;
+        tempIndecies[i + 5] = 0 + u;
+    }
+
+    
+    D3D11_BUFFER_DESC indexBufferDescriptor = {
+        .ByteWidth = sizeof(UiVertex) * MAX_UI_VERTICES,
+        .Usage = D3D11_USAGE_DYNAMIC,
+        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
+        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+        .MiscFlags = NULL,
+        .StructureByteStride = NULL
+    };
+    
+    
+    return result;
+}
+#endif 
 // this is the function that creates the shape to render
 void InitGraphics()
 {
     // create a triangle using the VERTEX struct
-    Vertex OurVertices[] =
-    {
-        {0.0f, 0.5f, 0.0f, Vec4f{1.0f, 0.0f, 0.0f, 1.0f}},
-        {0.45f, -0.5, 0.0f, Vec4f{0.0f, 1.0f, 0.0f, 1.0f}},
-        {-0.45f, -0.5f, 0.0f, Vec4f{0.0f, 0.0f, 1.0f, 1.0f}}
+    UiRect rectangles[] = {
+        { { -0.45f, 0.5f, 0.0f }, { 0.9f, 1.0f }}, // Rectangle 1
+        { { 0.45f, -0.5f, 0.0f }, { 0.9f, 1.0f }},  // Rectangle 2
     };
-
 
     // create the vertex buffer
     D3D11_BUFFER_DESC bd;
     ZeroMemory(&bd, sizeof(bd));
 
     bd.Usage = D3D11_USAGE_DYNAMIC;                // write access access by CPU and GPU
-    bd.ByteWidth = sizeof(Vertex) * 3;             // size is the VERTEX struct * 3
+    bd.ByteWidth = sizeof(rectangles);
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;       // use as a vertex buffer
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;    // allow CPU to write in buffer
 
@@ -361,7 +419,7 @@ void InitGraphics()
     // copy the vertices into the buffer
     D3D11_MAPPED_SUBRESOURCE ms;
     devcon->Map(pVBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);    // map the buffer
-    memcpy(ms.pData, OurVertices, sizeof(OurVertices));                 // copy the data
+    memcpy(ms.pData, rectangles, sizeof(rectangles));                 // copy the data
     devcon->Unmap(pVBuffer, NULL);                                      // unmap the buffer
 }
 
@@ -381,15 +439,11 @@ void InitPipeline()
     // load and compile the two shaders
     ID3DBlob *VS, *PS, *errors;
     HRESULT vsCompileResult =
-        // D3DCompile(shaderSrc, size, 0, 0, 0, "VShader", "vs_5_0", shaderCompileFlags, 0, &VS, &errors);
         D3DCompileFromFile(L"shader.hlsl", 0, 0, "VShader", "vs_5_0", shaderCompileFlags, 0, &VS, &errors);
 
-
     compileResult(vsCompileResult, errors);
-
     
     HRESULT psCompileResult =
-        // D3DCompile(shaderSrc, size, 0, 0, 0, "PShader", "ps_5_0", shaderCompileFlags, 0, &PS, &errors);
         D3DCompileFromFile(L"shader.hlsl", 0, 0, "PShader", "ps_5_0", shaderCompileFlags, 0, &PS, &errors);
     
     compileResult(vsCompileResult, errors);
@@ -403,13 +457,12 @@ void InitPipeline()
     devcon->PSSetShader(pPS, 0, 0);
 
     // create the input layout object
-    D3D11_INPUT_ELEMENT_DESC ied[] =
-    {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        { "POS",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_INSTANCE_DATA, 1 }
     };
-
-    dev->CreateInputLayout(ied, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
+    
+    dev->CreateInputLayout(layout, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
     devcon->IASetInputLayout(pLayout);
 }
 
