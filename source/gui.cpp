@@ -22,42 +22,32 @@
 #include <d3d11.h>
 #include <DirectXMath.h>
 #include "D3DCompiler.h"
-
+#include "dxgi1_6.h"
 
 // include the Direct3D Library file
 #pragma comment (lib, "d3d11.lib")
+#pragma comment (lib, "dxgi.lib")
 #pragma comment (lib, "d3dcompiler.lib")
 
 #include "gui.h"
 
 
-
-// global declarations
-IDXGISwapChain *swapchain;             // the pointer to the swap chain interface
-ID3D11Device *dev;                     // the pointer to our Direct3D device interface
-ID3D11DeviceContext *devcon;           // the pointer to our Direct3D device context
-ID3D11RenderTargetView *backbuffer;    // global declaration
-
-ID3D11InputLayout *pLayout;            // the pointer to the input layout
-ID3D11VertexShader *pVS;               // the pointer to the vertex shader
-ID3D11PixelShader *pPS;                // the pointer to the pixel shader
-
-ID3D11Buffer *pVBuffer;                // the pointer to the vertex buffer
-
-
 // function prototypes
-void InitD3D(HWND hWnd);     // sets up and initializes Direct3D
-void InitGraphics(void);    // creates the shape to render
-void InitPipeline(void);    // loads and prepares the shaders
-void RenderFrame(void);
-void CleanD3D(void);         // closes Direct3D and releases memory
-Ui SetUpGUIData();
+void InitD3D(WindowContext*);     // sets up and initializes Direct3D
+void CleanD3D(WindowContext*);         // closes Direct3D and releases memory
+void setViewPort(WindowContext*);
+
+void InitPipeline(WindowContext*);    // loads and prepares the shaders
+void RenderFrame(WindowContext*);
+
+Ui InitGraphics(WindowContext*);    // creates the shape to render
+void RenderUi(WindowContext*, Ui*);
+u32 getWindowRefreshRate();
 
 b32 running = true;
 
 #define printLastErrorMessage() _printLastErrorMessage(__FILE__, __FUNCTION__, __LINE__);
 void _printLastErrorMessage(const char* fileName = "UNKNOWN", const char* function = "UNKNOWN", s64 line = -1);
-void setViewPort(HWND hWnd);
 void compileResult(HRESULT result, ID3DBlob *errors);
     
 LRESULT CALLBACK
@@ -66,14 +56,16 @@ MainWindowCallback(HWND   hWindow,
                    WPARAM wParam,
                    LPARAM lParam)
 {
-    (void)wParam;
-    (void)lParam;
-    (void)hWindow;
+
+    WindowContext* windowContext = (WindowContext*)GetWindowLongPtrA(hWindow, GWLP_USERDATA);
     
     LRESULT result = 0;
     // TODO: Handle each case as documented in win32 documentation since for example,
     //       WM_GETICON must return a handle to the icon
     //       WM_CREATE  must return 0 to continue creaing the window, -1 will destroy the window... etc
+
+    // https://blog.getpaint.net/2017/08/12/win32-how-to-get-the-refresh-rate-for-a-window/
+    // TODO: Handle WM_DISPLAYCHANGE to detect if the refresh rate or resolution changes
     switch(message)
     {
       case WM_CLOSE:
@@ -94,8 +86,14 @@ MainWindowCallback(HWND   hWindow,
               DragQueryFile(hDrop, i, filePath, MAX_PATH);
               printf("[%d] : %s\n", i, filePath);
           }          
-          DragFinish(hDrop);  // Free memory
-          
+          DragFinish(hDrop);  // Free memory          
+      }break;
+      case WM_MOUSEMOVE: {
+          if (windowContext) {
+              windowContext->mousePosX = GET_X_LPARAM(lParam);
+              windowContext->mousePosY = GET_Y_LPARAM(lParam);
+          };
+          // printf("Mouse Position : %d, %d\n", xPos, yPos);
       }break;
       case WM_SIZE: {
           if (wParam != SIZE_MINIMIZED){
@@ -111,9 +109,35 @@ MainWindowCallback(HWND   hWindow,
     return result;
 }
 
+global u64 PERFORMANCE_COUNT_FREQUENCY;
+
+internal inline LARGE_INTEGER
+Win32GetWallClock(void) {
+    LARGE_INTEGER result;
+    QueryPerformanceCounter(&result);
+    return result;
+}
+
+internal inline f32
+Win32GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
+    return (end.QuadPart - start.QuadPart) / (f32)PERFORMANCE_COUNT_FREQUENCY;
+}
+
+
 void gui() {
 
+    // Create A console to direct the stdout to it
+    /*
+    if(!AllocConsole()){
+        printLastErrorMessage();
+        ExitProcess(-1);
+    }
+    */
+    LARGE_INTEGER perfCountFreq;
+    QueryPerformanceFrequency(&perfCountFreq); // how many counts per secound
+    PERFORMANCE_COUNT_FREQUENCY = perfCountFreq.QuadPart;
 
+    
     HMODULE instance = GetModuleHandleA(0);
     WNDCLASS wc      = {0};
     wc.style         = CS_OWNDC | CS_HREDRAW | CS_VREDRAW /*Redraw if size changes*/;
@@ -150,20 +174,50 @@ void gui() {
                                   hInstance,
                                   lpParam);
 
-
     if(!window)
     {
         printLastErrorMessage();
         ExitProcess(0);
     }
 
+
+    
+    WindowContext context = {};
+    context.window = window;
+    
+    SetWindowLongPtrA(window, GWLP_USERDATA, (LONG_PTR)&context);
+    
+
     // ShowWindow(window, nCmdShow);
 
 
     // set up and initialize Direct3D
-    InitD3D(window);
-    // Ui ui = SetUpGUIData();
+    InitD3D(&context);
+
+    Ui ui = InitGraphics(&context);
+
+    DEVMODE devmode;
+    EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &devmode); // Get current display settings
     
+    const Vec4f backgroundColor = {
+        .r = 0.117f,
+        .g = 0.117f,
+        .b = 0.117f,
+        .a = 1.0f
+    };
+
+
+    LARGE_INTEGER LastCounter = Win32GetWallClock();
+
+    
+    QueryPerformanceCounter(&LastCounter);
+    // u64 LastCycleCount = __rdtsc();
+
+    u32 MonitorRefreshHz = getWindowRefreshRate();
+    u32 GameUpdateHz = MonitorRefreshHz / 2;
+    f32 TargetSecondsPerFrame = 1.0f / (f32)GameUpdateHz;
+    
+    u32 frameCount = 0;
     while(running) {
         MSG message;
         while(PeekMessageA(&message, window, 0, 0, PM_REMOVE))
@@ -175,52 +229,90 @@ void gui() {
             TranslateMessage(&message); 
             DispatchMessage(&message);
         }
-        RenderFrame();
-    }
 
-    CleanD3D();
+        // Background Color   
+        context.devcon->ClearRenderTargetView(context.backbuffer, backgroundColor.data);                
+       
+        // RenderFrame(&context);
+        RenderUi(&context, &ui);
+        
+       
+        // Swap buffers
+        context.swapchain->Present(0, 0);
+
+        // this is for profiling 
+        // u64 EndCycleCount = __rdtsc();
+
+        LARGE_INTEGER WorkCounter = Win32GetWallClock();
+
+        // u64 cyclesElapsed  = EndCycleCount - LastCycleCount;
+        // LastCycleCount = EndCycleCount;
+        
+        f64 WorkSecondsElapsed = Win32GetSecondsElapsed(WorkCounter, LastCounter);
+
+        f64 SecondsElapsedForFrame = WorkSecondsElapsed;
+        while(SecondsElapsedForFrame < TargetSecondsPerFrame){
+            SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+        }
+
+#if 0        
+        f64 MSPerFrame = 1000.0f*(f64)counterElapsed / (f64)PerfCountFrequency.QuadPart;
+        f64 FPS = (f64)PerfCountFrequency.QuadPart / (f64)counterElapsed;
+        // f64 MegaCyclesPerFrame = (f64)cyclesElapsed / (1000.0f * 1000.0f);
+       
+        char buffer[256];
+        sprintf(buffer, "%.02fms/f, %.02ff/s\n", MSPerFrame, FPS);
+        SetWindowText(window, buffer);
+#endif   
+        LastCounter = Win32GetWallClock();
+   }
+
+    CleanD3D(&context);
     
     PostQuitMessage(0);
     DestroyWindow(window);
+    // BOOL WINAPI FreeConsole(void);
     return;
     
 }
 
 
 // this is the function used to render a single frame
-void RenderFrame(void)
+void RenderUi(WindowContext* context, Ui* ui)
 {
     // clear the back buffer to a deep blue
-    const Vec4f color = {
-        .r = 0.0f,
-        .g = 0.2f,
-        .b = 0.4f,
-        .a = 1.0f
-    };
-
-   
-    devcon->ClearRenderTargetView(backbuffer, color.data);
     
+    // copy the vertices into the buffer
+    // this really should happen when we decide to draw
+    D3D11_MAPPED_SUBRESOURCE ms;
+    context->devcon->Map(ui->pVBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);    // map the buffer
+    memcpy(ms.pData, ui->rects, sizeof(UiRect) * ui->rectsCount);                 // copy the data
+    context->devcon->Unmap(ui->pVBuffer, NULL);                                      // unmap the buffer
+
+
     // do 3D rendering on the back buffer here
     // select which vertex buffer to display
     UINT stride = sizeof(UiRect);
     UINT offset = 0;
-    devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+    context->devcon->IASetVertexBuffers(0, 1, &ui->pVBuffer, &stride, &offset);
+
+    // Set shaders
+    context->devcon->VSSetShader(ui->pVS, 0, 0);
+    context->devcon->GSSetShader(ui->pGS, 0, 0);
+    context->devcon->PSSetShader(ui->pPS, 0, 0);
+    
+    // Set layout
+    context->devcon->IASetInputLayout(ui->pLayout);    
 
     // select which primtive type we are using
-    // devcon->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    context->devcon->IASetPrimitiveTopology(ui->topology);
 
     // draw the vertex buffer to the back buffer
-    // devcon->Draw(4, 0);
-    devcon->DrawInstanced(4, 2, 0, 0);
-    
-    // switch the back buffer and the front buffer
-    swapchain->Present(0, 0);
+    context->devcon->DrawInstanced(4, ui->rectsCount, 0, 0);    
 }
 
 // this function initializes and prepares Direct3D for use
-void InitD3D(HWND hWnd)
+void InitD3D(WindowContext* context)
 {
     // create a struct to hold information about the swap chain
     DXGI_SWAP_CHAIN_DESC scd;
@@ -232,7 +324,7 @@ void InitD3D(HWND hWnd)
     scd.BufferCount = 1;                                    // one back buffer
     scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     // use 32-bit color
     scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
-    scd.OutputWindow = hWnd;                                // the window to be used
+    scd.OutputWindow = context->window;                                // the window to be used
     scd.SampleDesc.Count = 4;                               // how many multisamples
     scd.Windowed = TRUE;                                    // windowed/full-screen mode
 
@@ -245,68 +337,49 @@ void InitD3D(HWND hWnd)
                                   NULL,
                                   D3D11_SDK_VERSION,
                                   &scd,
-                                  &swapchain,
-                                  &dev,
+                                  &context->swapchain,
+                                  &context->dev,
                                   NULL,
-                                  &devcon);
+                                  &context->devcon);
     // TODO: something might be wrong here 
     // printLastErrorMessage();
     
     // get the address of the back buffer
     ID3D11Texture2D *pBackBuffer;
-    swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+    context->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
     
     // use the back buffer address to create the render target
-    dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
+    context->dev->CreateRenderTargetView(pBackBuffer, NULL, &context->backbuffer);
     pBackBuffer->Release();
     
     // set the render target as the back buffer
-    devcon->OMSetRenderTargets(1, &backbuffer, NULL);
+    context->devcon->OMSetRenderTargets(1, &context->backbuffer, NULL);
 
-    
-    // Rect lpRect;
-    // GetWindowRect(hWnd, &lpRect);
-    
-    // auto width = lpRect.right - lpRect.left;
-    // auto hieght = lpRect.bottom - lpRect.top;
-    
-    // D3D11_VIEWPORT viewport = {};
-    
-    // viewport.TopLeftX = 0;
-    // viewport.TopLeftY = 0;
-    // viewport.Width = (float)width;
-    // viewport.Height = (float)hieght;
-    // viewport.MinDepth = 0.0f;
-    // viewport.MaxDepth = 1.0f;
-    
-    // devcon->RSSetViewports(1, &viewport);
-    setViewPort(hWnd);
-    InitGraphics();
-    InitPipeline();
+    setViewPort(context);
 }
 
-void setViewPort(HWND hWnd) {
-    if (!devcon) return;
+void setViewPort(WindowContext* context) {
+    if (!context->devcon) return;
 
     RECT lpRect;
-    GetWindowRect(hWnd, &lpRect);
+    GetWindowRect(context->window, &lpRect);
     
     auto width = lpRect.right - lpRect.left;
     auto hieght = lpRect.bottom - lpRect.top;
     
     
     // Release buffers that depends on the swap chain
-    backbuffer->Release();
+    context->backbuffer->Release();
 
     // Resize SwapChain buffers
-    swapchain->ResizeBuffers(0, width, hieght, DXGI_FORMAT_UNKNOWN, 0);
+    context->swapchain->ResizeBuffers(0, width, hieght, DXGI_FORMAT_UNKNOWN, 0);
     
     // get the address of the back buffer
     ID3D11Texture2D *pBackBuffer;
-    swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+    context->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
     
     // use the back buffer address to create the render target
-    dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
+    context->dev->CreateRenderTargetView(pBackBuffer, NULL, &context->backbuffer);
     pBackBuffer->Release(); 
     
     
@@ -319,114 +392,57 @@ void setViewPort(HWND hWnd) {
     viewport.MaxDepth = 1.0f;
 
     
-    devcon->RSSetViewports(1, &viewport);
+    context->devcon->RSSetViewports(1, &viewport);
     // set the render target as the back buffer
-    devcon->OMSetRenderTargets(1, &backbuffer, NULL);
+    context->devcon->OMSetRenderTargets(1, &context->backbuffer, NULL);
 }
 
 // this is the function that cleans up Direct3D and COM
-void CleanD3D()
+void CleanD3D(WindowContext* context)
 {
     // close and release all existing COM objects
-    pVS->Release();
-    pPS->Release();
-    swapchain->Release();
-    backbuffer->Release();
-    dev->Release();
-    devcon->Release();
-}
-
-#if 0
-template<int MAX_NUM>
-constexpr auto generate_integer_list() {
-    // Use a struct to hold the C-style array
-    struct Result {
-        int UiVertex[MAX_NUM];
-    };
-
-    Result result{};
-    for (int i = 0; i < MAX_NUM; ++i) {
-        result.data[i] = (i * i); // Example computation: squares of indices
+    // pVS->Release();
+    // pPS->Release();
+    
+#define ReleaseObject(x) if (x) x->Release();
+    if (context) {
+        ReleaseObject(context->swapchain);
+        ReleaseObject(context->backbuffer);
+        ReleaseObject(context->dev);
+        ReleaseObject(context->devcon);
     }
-    return result;
 }
 
-Ui SetUpGUIData() {
-    Ui result = {};
 
-    constexpr u32 MAX_UI_VERTICES = 12000;
-    constexpr u32 MAX_UI_INDICES  = 18000;
-    
-    D3D11_BUFFER_DESC vertexBufferDescriptor = {
-        .ByteWidth = sizeof(UiVertex) * MAX_UI_VERTICES,
-        .Usage = D3D11_USAGE_DYNAMIC,
-        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
-        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-        .MiscFlags = NULL,
-        .StructureByteStride = NULL
-    };
-
-    dev->CreateBuffer(&vertexBufferDescriptor, NULL, &pVBuffer);       // create the buffer
-
-
-
-    constexpr U32 tempIndecies[MAX_RECT_COUNT * 6] = ;
-    for (U64 i = 0, u = 0, r=0; r < MAX_RECT_COUNT; u += 4, i += 6, ++r)
-    {
-        tempIndecies[i + 0] = 0 + u;
-        tempIndecies[i + 1] = 1 + u;
-        tempIndecies[i + 2] = 2 + u;
-        tempIndecies[i + 3] = 2 + u;
-        tempIndecies[i + 4] = 3 + u;
-        tempIndecies[i + 5] = 0 + u;
-    }
-
-    
-    D3D11_BUFFER_DESC indexBufferDescriptor = {
-        .ByteWidth = sizeof(UiVertex) * MAX_UI_VERTICES,
-        .Usage = D3D11_USAGE_DYNAMIC,
-        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
-        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-        .MiscFlags = NULL,
-        .StructureByteStride = NULL
-    };
-    
-    
-    return result;
-}
-#endif 
 // this is the function that creates the shape to render
-void InitGraphics()
-{
-    // create a triangle using the VERTEX struct
-    UiRect rectangles[] = {
-        { { -0.45f, 0.5f, 0.0f }, { 0.9f, 1.0f }}, // Rectangle 1
-        { { 0.45f, -0.5f, 0.0f }, { 0.9f, 1.0f }},  // Rectangle 2
-    };
+Ui InitGraphics(WindowContext* context) {
+    Ui ui = {};
 
+    {
+        // create a triangle using the VERTEX struct
+        // Move this to PushRect proc
+        UiRect rectangles[] = {
+            { { -0.45f, 0.5f, 0.0f }, { 0.9f, 1.0f }}, // Rectangle 1
+            { { 0.45f, -0.5f, 0.0f }, { 0.9f, 1.0f }},  // Rectangle 2
+        };
+
+        ui.rects = new UiRect[2]; // Arena
+        ui.rectsCount = 2;
+        memcpy(ui.rects, rectangles, sizeof(rectangles));                 // copy the data    
+    }
     // create the vertex buffer
     D3D11_BUFFER_DESC bd;
     ZeroMemory(&bd, sizeof(bd));
 
     bd.Usage = D3D11_USAGE_DYNAMIC;                // write access access by CPU and GPU
-    bd.ByteWidth = sizeof(rectangles);
+    bd.ByteWidth = sizeof(UiRect) * 2000;
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;       // use as a vertex buffer
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;    // allow CPU to write in buffer
 
-    dev->CreateBuffer(&bd, NULL, &pVBuffer);       // create the buffer
+    context->dev->CreateBuffer(&bd, NULL, &ui.pVBuffer);       // create the buffer
 
-
-    // copy the vertices into the buffer
-    D3D11_MAPPED_SUBRESOURCE ms;
-    devcon->Map(pVBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);    // map the buffer
-    memcpy(ms.pData, rectangles, sizeof(rectangles));                 // copy the data
-    devcon->Unmap(pVBuffer, NULL);                                      // unmap the buffer
-}
-
-
-// this function loads and prepares the shaders
-void InitPipeline()
-{
+    ui.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    
     void* filedata;
     u64 size = read_entire_file("shader.hlsl", &filedata);
     if (!size){
@@ -437,24 +453,31 @@ void InitPipeline()
     char* shaderSrc = (char*)filedata;
     auto shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
     // load and compile the two shaders
-    ID3DBlob *VS, *PS, *errors;
+    ID3DBlob *VS, *GS, *PS, *errors;
     HRESULT vsCompileResult =
-        D3DCompileFromFile(L"shader.hlsl", 0, 0, "VShader", "vs_5_0", shaderCompileFlags, 0, &VS, &errors);
+        D3DCompileFromFile(L"shader.hlsl", 0, 0, "VS_Main", "vs_5_0", shaderCompileFlags, 0, &VS, &errors);
 
     compileResult(vsCompileResult, errors);
+
+    HRESULT gsCompileResult =
+        D3DCompileFromFile(L"shader.hlsl", 0, 0, "GS_Main", "gs_5_0", shaderCompileFlags, 0, &GS, &errors);
+    
+    compileResult(gsCompileResult, errors);
     
     HRESULT psCompileResult =
-        D3DCompileFromFile(L"shader.hlsl", 0, 0, "PShader", "ps_5_0", shaderCompileFlags, 0, &PS, &errors);
+        D3DCompileFromFile(L"shader.hlsl", 0, 0, "PS_Main", "ps_5_0", shaderCompileFlags, 0, &PS, &errors);
     
-    compileResult(vsCompileResult, errors);
+    compileResult(psCompileResult, errors);
 
     // encapsulate both shaders into shader objects
-    dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
-    dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
+    context->dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &ui.pVS);
+    context->dev->CreateGeometryShader(GS->GetBufferPointer(), GS->GetBufferSize(), NULL, &ui.pGS);
+    context->dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &ui.pPS);
 
     // set the shader objects
-    devcon->VSSetShader(pVS, 0, 0);
-    devcon->PSSetShader(pPS, 0, 0);
+    context->devcon->VSSetShader(ui.pVS, 0, 0);
+    context->devcon->GSSetShader(ui.pGS, 0, 0);
+    context->devcon->PSSetShader(ui.pPS, 0, 0);
 
     // create the input layout object
     D3D11_INPUT_ELEMENT_DESC layout[] = {
@@ -462,9 +485,13 @@ void InitPipeline()
         { "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_INSTANCE_DATA, 1 }
     };
     
-    dev->CreateInputLayout(layout, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
-    devcon->IASetInputLayout(pLayout);
+    context->dev->CreateInputLayout(layout, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &ui.pLayout);
+    context->devcon->IASetInputLayout(ui.pLayout);
+
+    delete[] filedata;
+    return ui;
 }
+
 
 
 void _printLastErrorMessage(const char* fileName, const char* function, s64 line) {
@@ -502,4 +529,112 @@ void compileResult(HRESULT result, ID3DBlob *errors) {
         }
         ExitProcess(-1);
     }
+}
+
+
+u32 getWindowRefreshRate() {
+    IDXGIFactory1* pFactory = nullptr;
+    CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&pFactory);
+
+    IDXGIAdapter1* pAdapter = nullptr;
+    pFactory->EnumAdapters1(0, &pAdapter);
+
+    IDXGIOutput* pOutput = nullptr;
+    pAdapter->EnumOutputs(0, &pOutput);
+
+
+    u32 result;
+#if 0
+    DXGI_MODE_DESC modeDesc = {};
+    UINT numModes = 0;
+    pOutput->GetDisplayModeList(DXGI_FORMAT_R8G8B8A8_UNORM, 0, &numModes, nullptr);
+    DXGI_MODE_DESC* pModes = new DXGI_MODE_DESC[numModes];
+    pOutput->GetDisplayModeList(DXGI_FORMAT_R8G8B8A8_UNORM, 0, &numModes, pModes);
+
+    for (u32 i = 0; i < numModes; ++i){
+        auto& mode = pModes[i];
+        printf("Mode[%d]: Width: %d, Height: %d, %d Hz\n",
+               i,
+               mode.Width,
+               mode.Height,
+               mode.RefreshRate.Numerator / mode.RefreshRate.Denominator);
+        
+    }
+
+    result = pModes[numModes - 1].RefreshRate.Numerator / pModes[numModes - 1].RefreshRate.Denominator;
+    delete[] pModes;
+#elif 0
+    // Check for failures
+    DXGI_OUTPUT_DESC outputDesc;
+    pOutput->GetDesc(&outputDesc);
+
+    HMONITOR monitor = outputDesc.Monitor;
+
+    MONITORINFOEXA monitorInfo;
+    monitorInfo.cbSize  = sizeof(MONITORINFOEXA);
+    GetMonitorInfoA(monitor, &monitorInfo);
+    
+    DEVMODEA currentMode = {};
+    currentMode.dmSize = sizeof(DEVMODEA);
+    currentMode.dmDriverExtra = 0;
+    EnumDisplaySettingsA(monitorInfo.szDevice,
+                         ENUM_CURRENT_SETTINGS,
+                         &currentMode);
+    
+    
+    // Query IDXGIOutput1 for FindClosestMatchingMode1
+    IDXGIOutput1* pOutput1 = nullptr;
+    auto win32Result = pOutput->QueryInterface(__uuidof(IDXGIOutput1), (void**)&pOutput1);
+    if (SUCCEEDED(win32Result)) {
+        
+        b32 useDefaultRefreshRate = 1 == currentMode.dmDisplayFrequency || 0 == currentMode.dmDisplayFrequency;
+        DXGI_MODE_DESC1 modeToMatch = {};
+        modeToMatch.Width                   = currentMode.dmPelsWidth;
+        modeToMatch.Height                  = currentMode.dmPelsHeight;
+        modeToMatch.RefreshRate.Numerator   = useDefaultRefreshRate ? 0 : currentMode.dmDisplayFrequency;
+        modeToMatch.RefreshRate.Denominator = useDefaultRefreshRate ? 0 : 1;
+        modeToMatch.Format                  = DXGI_FORMAT_R32G32B32A32_FLOAT ;  // Must specify a valid format
+        modeToMatch.ScanlineOrdering        = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+        modeToMatch.Scaling                 = DXGI_MODE_SCALING_UNSPECIFIED;
+        
+        DXGI_MODE_DESC1 currentMode;
+        win32Result = pOutput1->FindClosestMatchingMode1(nullptr, &currentMode, nullptr);
+        if (SUCCEEDED(win32Result)) {
+            printf("Current Monitor Refresh Rate: %d Hz\n", 
+                currentMode.RefreshRate.Numerator / currentMode.RefreshRate.Denominator);
+        } else {
+            printLastErrorMessage();
+            printf("Failed to retrieve the current display mode.\n");
+        }
+        pOutput1->Release();
+    } else {
+        printf("IDXGIOutput1 not supported, falling back to DXGI 1.0.\n");
+    }
+    
+    // result = outputDesc.RefreshRate.Numerator / outputDesc.RefreshRate.Denominator;
+
+#else
+
+    DXGI_OUTPUT_DESC outputDesc;
+    pOutput->GetDesc(&outputDesc);
+
+    HMONITOR monitor = outputDesc.Monitor;
+
+    MONITORINFOEXA monitorInfo;
+    monitorInfo.cbSize  = sizeof(MONITORINFOEXA);
+    GetMonitorInfoA(monitor, &monitorInfo);
+    
+    DEVMODEA currentMode = {};
+    currentMode.dmSize = sizeof(DEVMODEA);
+    currentMode.dmDriverExtra = 0;
+    EnumDisplaySettingsA(monitorInfo.szDevice,
+                         ENUM_CURRENT_SETTINGS,
+                         &currentMode);
+    result = currentMode.dmDisplayFrequency;
+#endif
+    
+    pOutput->Release();
+    pAdapter->Release();
+    pFactory->Release();
+    return result;
 }
