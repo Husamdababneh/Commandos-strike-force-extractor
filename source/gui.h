@@ -76,6 +76,12 @@ struct UiVertex {
 struct UiRect {
     Vec3f pos;
     Vec2f size;
+    bool isSelected;
+};
+
+struct ScreenData {
+    f32 width, height;
+    float padding[2]; // Ensure 16-byte alignment for directx constant buffer requierment
 };
 
 struct Ui {
@@ -89,16 +95,18 @@ struct Ui {
 
     UiRect* rects;
     u32 rectsCount;
+    u32 maxRectsCount;
     
     ID3D11Buffer *pVBuffer;                // the pointer to the vertex buffer
+    ID3D11Buffer *screenBuffer;            // the pointer to the screen data constant buffer
     ID3D11InputLayout *pLayout;            // the pointer to the input layout
     ID3D11VertexShader *pVS;               // the pointer to the vertex shader
-    ID3D11GeometryShader *pGS;                // the pointer to the pixel shader
+    ID3D11GeometryShader *pGS;             // the pointer to the pixel shader
     ID3D11PixelShader *pPS;                // the pointer to the pixel shader
 
     D3D11_PRIMITIVE_TOPOLOGY topology;
 };
-
+void PushRect(Ui* ui, Vec3f pos, Vec2f size);
 
 struct WindowContext {
     HWND window;
@@ -110,7 +118,9 @@ struct WindowContext {
     
     u32 mousePosX;
     u32 mousePosY;
-    
+
+    u32 width;
+    u32 height;
 };
 
 

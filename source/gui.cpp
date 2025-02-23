@@ -93,11 +93,11 @@ MainWindowCallback(HWND   hWindow,
               windowContext->mousePosX = GET_X_LPARAM(lParam);
               windowContext->mousePosY = GET_Y_LPARAM(lParam);
           };
-          // printf("Mouse Position : %d, %d\n", xPos, yPos);
+          // printf("Mouse Position : %d, %d\n", GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
       }break;
       case WM_SIZE: {
-          if (wParam != SIZE_MINIMIZED){
-              //setViewPort(hWindow);
+          if (wParam != SIZE_MINIMIZED && windowContext){
+              setViewPort(windowContext);
           }
       }break;
       default:
@@ -184,6 +184,8 @@ void gui() {
     
     WindowContext context = {};
     context.window = window;
+    context.width  = nWidth;
+    context.height = nHeight;
     
     SetWindowLongPtrA(window, GWLP_USERDATA, (LONG_PTR)&context);
     
@@ -195,7 +197,9 @@ void gui() {
     InitD3D(&context);
 
     Ui ui = InitGraphics(&context);
-
+    // PushRect(&ui, { -0.45f, 0.5f, 0.0f }, { 0.9f, 1.0f });
+    PushRect(&ui, {  100.0f,  100.0f, 0.0f }, { 100.0, 100.0f });
+    PushRect(&ui, {  125.0f,  360.0f, 0.0f }, { 100.f, 100.f });
     DEVMODE devmode;
     EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &devmode); // Get current display settings
     
@@ -252,6 +256,7 @@ void gui() {
 
         f64 SecondsElapsedForFrame = WorkSecondsElapsed;
         while(SecondsElapsedForFrame < TargetSecondsPerFrame){
+            // TODO: Find a better way to wait, this consumes CPU for no reason at all 
             SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
         }
 
@@ -280,7 +285,25 @@ void gui() {
 // this is the function used to render a single frame
 void RenderUi(WindowContext* context, Ui* ui)
 {
-    // clear the back buffer to a deep blue
+
+    // Update UI data
+
+    for(u32 i = 0; i < ui->rectsCount; ++i) {
+        UiRect& rect = ui->rects[i];
+
+        f32 x0 = rect.pos.x;
+        f32 x1 = rect.pos.x + rect.size.x;
+
+        f32 y0 = rect.pos.y;
+        f32 y1 = rect.pos.y + rect.size.y;
+        
+        if (context->mousePosX >= x0 && context->mousePosX <= x1 &&
+            context->mousePosY >= y0 && context->mousePosY <= y1) {
+            rect.isSelected = true;
+        } else {
+            rect.isSelected = false;
+        }            
+    };
     
     // copy the vertices into the buffer
     // this really should happen when we decide to draw
@@ -290,6 +313,17 @@ void RenderUi(WindowContext* context, Ui* ui)
     context->devcon->Unmap(ui->pVBuffer, NULL);                                      // unmap the buffer
 
 
+    ScreenData screenData;
+    screenData.width  = (f32)context->width;
+    screenData.height = (f32)context->height;
+    
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    context->devcon->Map(ui->screenBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &screenData, sizeof(Vec2f));
+    context->devcon->Unmap(ui->screenBuffer, 0);
+    
+    // Update screen buffer if screen size changes
+    
     // do 3D rendering on the back buffer here
     // select which vertex buffer to display
     UINT stride = sizeof(UiRect);
@@ -297,7 +331,9 @@ void RenderUi(WindowContext* context, Ui* ui)
     context->devcon->IASetVertexBuffers(0, 1, &ui->pVBuffer, &stride, &offset);
 
     // Set shaders
+    context->devcon->VSSetConstantBuffers(0, 1, &ui->screenBuffer);
     context->devcon->VSSetShader(ui->pVS, 0, 0);
+    context->devcon->GSSetConstantBuffers(0, 1, &ui->screenBuffer);
     context->devcon->GSSetShader(ui->pGS, 0, 0);
     context->devcon->PSSetShader(ui->pPS, 0, 0);
     
@@ -324,7 +360,7 @@ void InitD3D(WindowContext* context)
     scd.BufferCount = 1;                                    // one back buffer
     scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     // use 32-bit color
     scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
-    scd.OutputWindow = context->window;                                // the window to be used
+    scd.OutputWindow = context->window;                     // the window to be used
     scd.SampleDesc.Count = 4;                               // how many multisamples
     scd.Windowed = TRUE;                                    // windowed/full-screen mode
 
@@ -365,14 +401,16 @@ void setViewPort(WindowContext* context) {
     GetWindowRect(context->window, &lpRect);
     
     auto width = lpRect.right - lpRect.left;
-    auto hieght = lpRect.bottom - lpRect.top;
+    auto height = lpRect.bottom - lpRect.top;
     
+    context->width = width;
+    context->height = height;
     
     // Release buffers that depends on the swap chain
     context->backbuffer->Release();
 
     // Resize SwapChain buffers
-    context->swapchain->ResizeBuffers(0, width, hieght, DXGI_FORMAT_UNKNOWN, 0);
+    context->swapchain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
     
     // get the address of the back buffer
     ID3D11Texture2D *pBackBuffer;
@@ -387,7 +425,7 @@ void setViewPort(WindowContext* context) {
     viewport.TopLeftX = 0;
     viewport.TopLeftY = 0;
     viewport.Width = (float)width;
-    viewport.Height = (float)hieght;
+    viewport.Height = (float)height;
     viewport.MinDepth = 0.0f;
     viewport.MaxDepth = 1.0f;
 
@@ -414,33 +452,54 @@ void CleanD3D(WindowContext* context)
 }
 
 
+void PushRect(Ui* ui, Vec3f pos, Vec2f size) {
+    UiRect rect = {
+        pos, size, false
+    };
+
+    ui->rects[ui->rectsCount] = rect;
+    ui->rectsCount++;
+}
+
 // this is the function that creates the shape to render
 Ui InitGraphics(WindowContext* context) {
     Ui ui = {};
-
-    {
-        // create a triangle using the VERTEX struct
-        // Move this to PushRect proc
-        UiRect rectangles[] = {
-            { { -0.45f, 0.5f, 0.0f }, { 0.9f, 1.0f }}, // Rectangle 1
-            { { 0.45f, -0.5f, 0.0f }, { 0.9f, 1.0f }},  // Rectangle 2
-        };
-
-        ui.rects = new UiRect[2]; // Arena
-        ui.rectsCount = 2;
-        memcpy(ui.rects, rectangles, sizeof(rectangles));                 // copy the data    
-    }
+    ui.maxRectsCount = 2000;
+    ui.rects = new UiRect[ui.maxRectsCount];
+    
     // create the vertex buffer
     D3D11_BUFFER_DESC bd;
     ZeroMemory(&bd, sizeof(bd));
 
     bd.Usage = D3D11_USAGE_DYNAMIC;                // write access access by CPU and GPU
-    bd.ByteWidth = sizeof(UiRect) * 2000;
+    bd.ByteWidth = sizeof(UiRect) * ui.maxRectsCount;
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;       // use as a vertex buffer
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;    // allow CPU to write in buffer
 
     context->dev->CreateBuffer(&bd, NULL, &ui.pVBuffer);       // create the buffer
 
+    
+    ScreenData screenData;
+    screenData.width  = (f32)context->width;
+    screenData.height = (f32)context->height;
+
+    D3D11_BUFFER_DESC cbDesc = {};
+    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+    cbDesc.ByteWidth = sizeof(ScreenData);
+    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    cbDesc.MiscFlags = 0;
+
+  
+    context->dev->CreateBuffer(&cbDesc, NULL, &ui.screenBuffer);
+    
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    context->devcon->Map(ui.screenBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &screenData, sizeof(Vec2f));
+    context->devcon->Unmap(ui.screenBuffer, 0);
+
+
+    
     ui.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
     
     void* filedata;
@@ -482,10 +541,15 @@ Ui InitGraphics(WindowContext* context) {
     // create the input layout object
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         { "POS",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
-        { "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_INSTANCE_DATA, 1 }
+        { "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "SELECTED", 0, DXGI_FORMAT_R8_UINT,     0, 20, D3D11_INPUT_PER_INSTANCE_DATA, 1 }
     };
     
-    context->dev->CreateInputLayout(layout, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &ui.pLayout);
+    context->dev->CreateInputLayout(layout,
+                                    sizeof(layout)/sizeof(D3D11_INPUT_ELEMENT_DESC),
+                                    VS->GetBufferPointer(),
+                                    VS->GetBufferSize(),
+                                    &ui.pLayout);
     context->devcon->IASetInputLayout(ui.pLayout);
 
     delete[] filedata;
