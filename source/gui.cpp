@@ -152,7 +152,7 @@ void gui() {
     DWORD     dwExStyle    = WS_EX_ACCEPTFILES;
     LPCSTR    lpClassName  = "windowClassName";
     LPCSTR    lpWindowName = wc.lpszClassName;
-    DWORD     dwStyle      = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    DWORD     dwStyle      = WS_OVERLAPPEDWINDOW; // WS_OVERLAPPEDWINDOW | WS_POPUP
     int       X            = CW_USEDEFAULT;
     int       Y            = CW_USEDEFAULT;
     int       nWidth       = 1920 / 2;
@@ -190,8 +190,7 @@ void gui() {
     SetWindowLongPtrA(window, GWLP_USERDATA, (LONG_PTR)&context);
     
 
-    // ShowWindow(window, nCmdShow);
-
+    ShowWindow(window, SW_SHOW);
 
     // set up and initialize Direct3D
     InitD3D(&context);
@@ -234,16 +233,6 @@ void gui() {
             DispatchMessage(&message);
         }
 
-        // Background Color   
-        context.devcon->ClearRenderTargetView(context.backbuffer, backgroundColor.data);                
-       
-        // RenderFrame(&context);
-        RenderUi(&context, &ui);
-        
-       
-        // Swap buffers
-        context.swapchain->Present(0, 0);
-
         // this is for profiling 
         // u64 EndCycleCount = __rdtsc();
 
@@ -260,15 +249,16 @@ void gui() {
             SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
         }
 
-#if 0        
-        f64 MSPerFrame = 1000.0f*(f64)counterElapsed / (f64)PerfCountFrequency.QuadPart;
-        f64 FPS = (f64)PerfCountFrequency.QuadPart / (f64)counterElapsed;
-        // f64 MegaCyclesPerFrame = (f64)cyclesElapsed / (1000.0f * 1000.0f);
+                // Background Color   
+        context.devcon->ClearRenderTargetView(context.backbuffer, backgroundColor.data);                
        
-        char buffer[256];
-        sprintf(buffer, "%.02fms/f, %.02ff/s\n", MSPerFrame, FPS);
-        SetWindowText(window, buffer);
-#endif   
+        // RenderFrame(&context);
+        RenderUi(&context, &ui);
+        
+       
+        // Swap buffers
+        context.swapchain->Present(0, 0);
+        
         LastCounter = Win32GetWallClock();
    }
 
@@ -398,7 +388,7 @@ void setViewPort(WindowContext* context) {
     if (!context->devcon) return;
 
     RECT lpRect;
-    GetWindowRect(context->window, &lpRect);
+    GetClientRect(context->window, &lpRect);
     
     auto width = lpRect.right - lpRect.left;
     auto height = lpRect.bottom - lpRect.top;
