@@ -36,8 +36,7 @@ String8 operator""_s8(const char* str, size_t length) {
     return result;
 }
 
-function
-String
+
 //~ Misc
 function
 String8 stringFromMonth(Month month) {
