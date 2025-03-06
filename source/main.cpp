@@ -1,289 +1,281 @@
-/*
-  main.cpp -- First try for Commando Strike force Pak files extractor
-*/
+/* ========================================================================
+   $File: main.cpp
+   $Date: 2020-03-30
+   $Creator: Husam Dababneh
+   ========================================================================*/
 
-#include "main.h"
-#include "zlib.h"
-#include "zconf.h"
+#if 1
 
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <filesystem>
-#include <cassert>
 #include <stdio.h>
-#include <thread>
-#include <atomic>
-#include <chrono>
-#define LOGANDEXIT(x) { std::cout << x ; return 0;}
-#define ERRORANDEXIT(x) { std::cerr << x ; return 0;}
-#define assertm(exp, msg) assert((msg, exp))
+#include <stdlib.h>
+#include <string.h>
 
-std::atomic<int> progress = 0;
-std::atomic<int> maxNum = 100;
+#define STRING_IDENTIFIER 16
 
-void ProgressBar()
+#include "utils.cpp"
+#include "main.h"
+#include "ExtractCSFFBS.cpp"
+#include "raw.cpp"
+
+#include "rpc.cpp"
+#include "gui.cpp"
+
+inline 
+u8* get_resource_pointer(u8* base, u32 roff)
 {
-	while(progress < maxNum)
-	{
-		int barWidth = 70;
-		std::cout << "[";
-		float realPos = ((float)progress / maxNum);
-		int pos = int(barWidth * realPos);
-		for (int i = 0; i < barWidth; ++i) {
-			if (i < pos) std::cout << "=";
-			else if (i == pos) std::cout << ">";
-			else std::cout << " ";
-		}
-		std::cout << "] " << int(realPos* 100)  << " %\r";
-		std::cout.flush();
-	}
-}
-
-void zerr(int ret)
-{
-	std::cerr << "Unsuccesful decompression : ";
-	switch (ret) {
-	  case Z_ERRNO:
-		  if (ferror(stdin))
-			  std::cerr << "error reading stdin\n";
-		  if (ferror(stdout))
-			  std::cerr << "error writing stdout\n";
-		  break;
-	  case Z_STREAM_ERROR:
-		  std::cerr << "invalid compression level\n";
-		  break;
-	  case Z_DATA_ERROR:
-		  std::cerr << "invalid or incomplete deflate data\n";
-		  break;
-	  case Z_MEM_ERROR:
-		  std::cerr << "out of memory\n";
-		  break;
-	  case Z_VERSION_ERROR:
-		  std::cerr << "zlib version mismatch!\n";
-	}
-	std::cout << "ret : " << ret;
-	assertm(false, "Error While Decompression");
-}
-
-void decompress(char* source, int sourceSize, char* dest, int destSize)
-{
-
-	z_stream infstream;
-	infstream.zalloc = Z_NULL;
-	infstream.zfree = Z_NULL;
-	infstream.opaque = Z_NULL;
-	
-	infstream.avail_in = (unsigned int)sourceSize; // size of input
-	infstream.next_in = (Bytef*)source; // input char array
-	
-	infstream.avail_out = (unsigned int)destSize; // size of output
-	infstream.next_out = (Bytef*)dest; // output char array
-
-	// TODO(husam): handle errors comeing from  (inflate)
-	int ret = inflateInit(&infstream);
-	if(ret < Z_OK) zerr(ret);
-	ret = inflate(&infstream, Z_NO_FLUSH);
-	if(ret < Z_OK ) zerr(ret);
-	inflateEnd(&infstream);
-
+	return base + roff - 13;
 }
 
 
-bool ExtractPakFiles(const char * filepath)
+
+void ExtractPakA(PakHeader* pak, FilesMetaData* files, u8* offset)
 {
-
-	std::cout << "Opening  " << filepath << "\n";
-	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
-
-	if (!file.is_open())
-		LOGANDEXIT("Error : cannot open " << filepath << "\n");
-	
-	int filesize = std::filesystem::file_size(filepath);
-	PakHeader pak = { 0 };
-	int filesOffset;
-	int maximumFileSize = 0;
-	file.read((char*)&pak, sizeof(PakHeader));
-	std::cout << "File type = ";
-	std::cout.write((char*)&pak.packtype,4) << "\n";
-	std::cout << "V1 = " << pak.PackedBlockSize << "\n";
-	std::cout << "V2 = " << pak.UnpackedBlockSize << "\n";
-	std::cout << "ResNum = " << pak.ResNum << "\n";
-
-	FilesData* filesData = new FilesData[pak.ResNum];
-	for (int a = 0; a < pak.ResNum; a++)
-	{
-		auto& filedata = filesData[a];
-		char* filename = new char[120];
-		memset(filename, 0, 120);
-
-		char ch = 0;
-		int size = 0;
-		for(char ch = 0; (ch = file.get()) != '\0'; size++)
-			filedata.filename[size] = ch;
-		filedata.filename[size] = '\0';
-		file.read((char*)&filedata.ROFF, sizeof(long));
-		file.read((char*)&filedata.Size, sizeof(long));
-		file.read((char*)&filedata.V1, sizeof(long));
-		file.read((char*)&filedata.V2, sizeof(long));
+    for(u32 i = 0; i < pak->ResNum; i++)
+    {
+        const u8* OUT_DIR = "output/"_u8;
+        u32 out_dir_size = strlen((char*)OUT_DIR);
+        char* output_file_path[512] = {0};
+        
+        strcat_s((char*)output_file_path, 512, (char*)OUT_DIR);
+        strcat_s((char*)output_file_path, 512 - out_dir_size, (char*) files[i].filename);
 		
+        SV filePath = {3, (u8*)output_file_path};
+        
+#if 0
+        File file = createFile(filePath);
+
+        u8* output = get_resource_pointer(files[i].roff
+        u64 wrote_count ;// fwrite(output, 1, file_size, outfile);
+        b8 result = writeFile(file, output, file_size, &wrote_count);
+       
+        closeFile(file);
+#endif
+    }
+}
+
+void ExtractPakC(PakHeader* pak, FilesMetaData* files, u8* offset)
+{
+    u32 res_count = pak->ResNum;
+    for(int resource_index = 0; resource_index < res_count; resource_index++)
+    {
+        //int it = 1;
+        u8* it = get_resource_pointer(offset, files[resource_index].roff);
+        u32 file_size = files[resource_index].size;
+        u32 size = files[resource_index].size;
+        u8* output = (u8*)malloc(sizeof(u8) * size);
+        memset(output, 0, size);
+		const char* filename = (const char*)files[resource_index].filename;
+        u32 PackedBlockSize, UnpackedBlockSize;
+        u32 ioffset = 0;
 		
-		if (filedata.Size > maximumFileSize)
-			maximumFileSize = filedata.Size;
+        // What i found was that inflate has around 4:1 ratio of compression in avarage
+        constexpr int MaxPackedBlockSize = 4096 + 1024;
+        constexpr int MaxUnpackedBlockSize = MaxPackedBlockSize * 4;
+        char packed[MaxPackedBlockSize], unpacked[MaxUnpackedBlockSize];
+		
+        while(1){
+            if (size <= 0)
+            {
+                it += sizeof(u32);
+                break;
+            }
+            
+            PackedBlockSize   = *(u32*) it;
+            it += sizeof(u32);
+            
+            UnpackedBlockSize = *(u32*) it;
+            it += sizeof(u32);
+			
+            // "PackedBlockSize is bigger than you think"
+            assert(MaxPackedBlockSize >= PackedBlockSize);
+            // "UnpackedBlockSize is bigger than you think"
+            assert(MaxUnpackedBlockSize >= UnpackedBlockSize);
+			
+            memcpy(packed, it, PackedBlockSize);
+            it += PackedBlockSize;
+			
+            decompress(packed, PackedBlockSize, unpacked, UnpackedBlockSize);
+            memcpy(output + ioffset, unpacked, UnpackedBlockSize);
+			
+            size -= UnpackedBlockSize;
+            ioffset += UnpackedBlockSize;
+        }
+
+        File file = createFile(to_sv(filename));
+        
+        u64 wrote_count;
+        b8 result = writeFile(file, output, file_size, &wrote_count);
+        
+        closeFile(file);
+    }
+}
+
+global 
+PakFile ParsePakFile(const char* filepath) {
+    PakFile result = {};
+	void* fileData;
+	if (!read_entire_file(filepath, &fileData)){
+		printf("Couldn't read %.s", filepath);
+		exit(-1);
 	}
-	maxNum = pak.ResNum;
-	//std::thread t1(ProgressBar);
-	char* data = new char[maximumFileSize];
-	for (int a = 0; a < pak.ResNum; a++)
+
+    u8* pak_file = (u8*)fileData;
+
+    result.dataToBeFreed = pak_file;
+    result.pak = (PakHeader*)pak_file;
+    result.files = new FilesMetaData[result.pak->ResNum];
+
+    u8* offset = pak_file + sizeof(PakHeader);
+
+	for(u32 i = 0; i < result.pak->ResNum; i++)
 	{
-		std::filesystem::path path{ "D:\\Husam\\Games\\CSF\\Data" };
-		path /= std::filesystem::path(filepath).stem();
-		path /= filesData[a].filename;
-		std::filesystem::create_directories(path.parent_path());
-		std::fstream outfile(path, std::fstream::out | std::fstream::binary);
-
-		if (((char*)&pak.packtype)[3] == 'A')
-		{
-			file.read(data, filesData[a].Size);
-		}
-		else
-		{
-			long PackedBlockSize, UnpackedBlockSize;
-			int size = filesData[a].Size;
-			char junk[sizeof(long)];
-			int offset = 0;
-			
-			// What i found was that deflate and inflate has around 4:1 ratio of compression
-			// for avarage files
-			constexpr int MaxPackedBlockSize = 4096 + 1024;
-			constexpr int MaxUnpackedBlockSize = MaxPackedBlockSize * 4;
-			char packed[MaxPackedBlockSize], unpacked[MaxUnpackedBlockSize];
-			
-			while(1){
-				if (size <= 0)
-				{
-					file.read(junk, sizeof(long));
-					break;
-				}
-				file.read((char*)&PackedBlockSize, sizeof(long));
-				file.read((char*)&UnpackedBlockSize, sizeof(long));
-
-				assertm(MaxPackedBlockSize >= PackedBlockSize,
-						"PackedBlockSize is bigger than you think");
-				assertm(MaxUnpackedBlockSize >= UnpackedBlockSize,
-						"UnpackedBlockSize is bigger than you think");
-
-				file.read(packed, PackedBlockSize);
-
-				decompress(packed, PackedBlockSize, unpacked, UnpackedBlockSize);
-				memcpy(data + offset, unpacked, UnpackedBlockSize);
-				
-				size -= UnpackedBlockSize;
-				offset += UnpackedBlockSize;
-			}
-			outfile.write(data, filesData[a].Size);
-			outfile.close();
-			
-		}
-		progress++;
+		result.files[i].filename = offset;
+		while(*offset++ != '\0');
+		result.files[i].roff = *(u32*)offset; offset += sizeof(u32);
+		result.files[i].size = *(u32*)offset; offset += sizeof(u32);
+		result.files[i].v1   = *(u32*)offset; offset += sizeof(u32);
+		result.files[i].v2   = *(u32*)offset; offset += sizeof(u32);	
 	}
-	//t1.join();
-	file.close();
-	return true;
+    
+    return result;
 }
 
-/*
-  RPC FileFormat
-  
-  4  - string_identifier == 16
-  20 - unknown
-  4  - models count 
-  8  - unknown
-  4  - objects count 
-
-  (12*4             +    4          +      4 ) * objects
-  transformation        parent     +      padding? 
-
-*/
-
-bool RPCConvert(const char * filepath)
+void ExtractPakFiles2(const char * filepath)
 {
-	std::cout << "Opening  " << filepath << "\n";
-	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
-
-	if (!file.is_open())
-		LOGANDEXIT("Error : cannot open " << filepath << "\n");
-
-	unsigned long string_identifier;
-	file.read((char*)&string_identifier, sizeof(long));
-	if(string_identifier != 16)
-		LOGANDEXIT("Error : Not Vaild RPC File : string_identifier is not 16\n");
-
-	char unknown1[20] = {0};
-	file.read(unknown1, 20);
-
-	long ModelsCount;
-	file.read((char*)&ModelsCount, sizeof(long));
 	
-	char unknown2[8]= {0};
-	file.read(unknown1, 8);
+	void* fileData;
+	if (!read_entire_file(filepath, &fileData)){
+		printf("Couldn't read %.s", filepath);
+		exit(-1);
+	}
 
-	long ObjectsCount;
-	file.read((char*)&ObjectsCount, sizeof(long));
+    u8* pak_file = (u8*)fileData;
+    
+	PakHeader* pak = (PakHeader*)pak_file;
+	printf("Tag = %.4s\n", pak->Tag);
+	printf("IDK = %d\n", pak->IDK);
+	printf("Version = %d\n", pak->Version);
+	printf("ResNum = %d\n", pak->ResNum);
 	
-	std::cout << "Model count : " << ModelsCount << "\n";
-	std::cout << "Object  count : " << ObjectsCount << "\n";
-	file.close();
-	return true;
+	u8* offset = pak_file + sizeof(PakHeader);
+	
+	FilesMetaData* files = (FilesMetaData *)malloc(sizeof(FilesMetaData) * pak->ResNum);
+	u32 maximum_file_size = 0;
+	for(u32 i = 0; i < pak->ResNum; i++)
+	{
+		files[i].filename = offset;
+		while(*offset++ != '\0');
+		files[i].roff = *(u32*)offset; offset += sizeof(u32);
+		files[i].size = *(u32*)offset; offset += sizeof(u32);
+		files[i].v1   = *(u32*)offset; offset += sizeof(u32);
+		files[i].v2   = *(u32*)offset; offset += sizeof(u32);
+		
+		if (files[i].size > maximum_file_size) maximum_file_size = files[i].size;
+	}
+	
+	if (false)
+	{
+		for(u32 i = 0; i < pak->ResNum; i++)
+		{
+			printf("v1[0x%08X], v2[0x%X], [%s]\n", files[i].v1, files[i].v2_1, files[i].filename);
+		}
+	}
+	
+	
+	// get i'th file from roff
+	// files[i].roff + offset - 13 = the address of the i'th file's data
+	
+	
+#if 1
+	if (pak->Tag[3] == 'A'){
+        ExtractPakA(pak, files, offset);
+	} else {
+		ExtractPakC(pak, files, offset);
+	}
+#endif
+	
+	free(files);
+	free(pak_file);
+	
 }
 
-int ExtractCSFFBS(const char* filepath)
-{
-	std::cout << "Opening  " << filepath << "\n";
-	std::fstream file(filepath, std::fstream::in | std::fstream::binary);
 
-	if (!file.is_open())
-		LOGANDEXIT("Error : cannot open " << filepath << "\n");
-	int filesize = std::filesystem::file_size(filepath);
 
-	CSFFBSHeader header = {0};
-	file.read((char*)&header, sizeof(CSFFBSHeader));
-
-	std::cout << "Header Tag = " << header.Tag << "\n";
-	std::cout << "Header Unknown = " << header.unknown1 << "\n";
-	std::cout << "Header Unknown = " << header.unknown2 << "\n";
-	std::cout << "Header Flag = " << (int)header.Flag;
-	file.close();
-	return 0;
-}
 
 int main(int argc, char** argv)
 {
+    const char* exe_name = argv[0];
 
-	// TODO(husam): make Usage usefull
-	if (argc < 3)
-		ERRORANDEXIT("Usage:" <<  argv[0] << " -<e/3/f>"  << " <filename>.pak\n");
-	
-	const char* whattodo = argv[1];
+    if (argc == 1 || (argc == 2 && argv[1][1] == 'w')){
+        gui();
+        return 0;
+    }
+    
+    // TODO(husam): make Usage usefull
+	if (argc < 3){
+		printf("Usage: %s -<e/3/f> <filename>.pak\n", exe_name);
+        return 0;
+    }
+
+	const char* whattodo = argv[1];    
 	const char* filePath = argv[2];
-
+	
 	switch(whattodo[1])
 	{
-	  case 'e':
-	  case 'E':
-		  ExtractPakFiles(filePath);
-		  break;
-	  case '3':
-		  RPCConvert(filePath);
-		  break;
-	  case 'f':
-	  case 'F':
-		  ExtractCSFFBS(filePath);
-		  break;
-	  default:
-		  std::cout << "Unknown command [" << whattodo << "]\n" ;
+      case 'e': case 'E': {
+          ExtractPakFiles2(filePath);
+          break;
+      }
+      case 'h': case 'H': {
+          //ExtractAllFiles(filePath);
+          break;
+      }
+      case 'c': case 'C': {
+          printf("Not implemented yet");
+          //CompressPAC(filePath);
+          break;
+      }
+      case '3': {
+          // RpcConvert(filePath);
+          RpcConvertNew(filePath);
+          //printf("Not implemented yet");
+          break;
+      }
+      case 't': case 'T': {
+          ExtractCSFFBS(filePath);
+          break;
+      }
+      case 'r': case 'R': {
+          convertRaw(filePath);
+          break;
+      }
+      case 'w':{
+          gui();
+          break;
+      };
+      default:
+          printf("Unknown command [%s]\n", whattodo);
+          printf("Usage: %s -<e/3/f> <filename>.pak\n", exe_name);
 	}
-
+	
 	return 0;
 }
+#else
 
+
+#include <stdio.h>
+#include "utils.cpp"
+
+
+int main(int argc, char** argv)
+{
+    SV fullPath = "folder1/folder2/folder3/folder4/first.txt"_sv;
+    File file = createFile(fullPath);
+
+    
+    DWORD errorCode = GetLastError();
+    printf("Error Code: %d\n", errorCode);    
+    return 0;
+}
+
+#endif
