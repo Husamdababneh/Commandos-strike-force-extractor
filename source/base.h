@@ -180,30 +180,26 @@
 
 //~ Basic Types
 #if COMPILER_CL == 1
-typedef  __int8   s8;
-typedef  __int16  s16;
-typedef  __int32  s32;
-typedef  __int64  s64;
-
-typedef  unsigned __int8   u8;
-typedef  unsigned __int16  u16;
-typedef  unsigned __int32  u32;
-typedef  unsigned __int64  u64;
-
+    typedef  __int8   s8;
+    typedef  __int16  s16;
+    typedef  __int32  s32;
+    typedef  __int64  s64;
+    typedef  unsigned __int8   u8;
+    typedef  unsigned __int16  u16;
+    typedef  unsigned __int32  u32;
+    typedef  unsigned __int64  u64;
 #elif COMPILER_CLANG
-typedef  char   s8;
-typedef  short  s16;
-typedef  int  s32;
-typedef  long long  s64;
-
-typedef  unsigned char   u8;
-typedef  unsigned short  u16;
-typedef  unsigned int    u32;
-typedef  unsigned long long  u64;
-
+    typedef  char   s8;
+    typedef  short  s16;
+    typedef  int  s32;
+    typedef  long long  s64;
+    typedef  unsigned char   u8;
+    typedef  unsigned short  u16;
+    typedef  unsigned int    u32;
+    typedef  unsigned long long  u64;
 #else
-#error "What The Hell"
-#endif // COMPILER_CL == 1
+    #error "What The Hell"
+#endif
 
 typedef  u8   b8;
 typedef  u16  b16;
@@ -215,9 +211,11 @@ typedef u16 Padding16;
 typedef u32 Padding32;
 typedef u64 Padding64;
 
-typedef  float   f32;
-typedef  double   f64;
+typedef float    f32;
+typedef double   f64;
 
+typedef u64  size64;
+typedef void* vptr;
 
 // NOTE: IF YOU GET "INVALID SUBSCRIPT" ERROR THIS MEANS YOU CANNOT USE THESE TYPES
 // NOTE: Can use this if we want to go back to the following
@@ -356,81 +354,21 @@ constexpr f64 GAMMA_F64            = 0.57721566490153286060651208999138015227160
 #define GB(x)   (u64)(MB(x) * 1024)
 #define TB(x)   (u64)(GB(x) * 1024)
 
-typedef struct String8{
-  u8 *str;
-  u64 size;
-} String8;
+#define SizedPointer(name, type) struct name { type* item;  size64 size; };
 
-typedef struct String16{
-  u16 *str;
-  u64 size;
-} String16;
-
-typedef struct String32{
-  u32 *str;
-  u64 size;
-} String32;
-
-typedef struct String8Node{
-  struct String8Node *next;
-  String8 string;
-} String8Node;
-
-typedef struct String8List{
-  String8Node *first;
-  String8Node *last;
-  u64 node_count;
-  u64 total_size;
-} String8List;
-
-typedef struct StringJoin{
-  String8 pre;
-  String8 mid;
-  String8 post;
-} StringJoin;
-
-enum StringMatchFlags{
-  StringMatchFlag_NoCase = 1 << 0,
-};
-
-#define str8_expand(s) (int)((s).size), ((s).str)
+struct string8 { u8 *str;  size64 size; };
+#define str8_expand(s) (u64)((s).size), ((s).str)
 
 
-constexpr b8 ClCompiler            = COMPILER_CL;
-constexpr b8 ClangCompiler         = COMPILER_CLANG;
-constexpr b8 GccCompiler           = COMPILER_GCC;
-constexpr b8 is64Bit               = _64BITBuild;
-constexpr b8 is32Bit               = !is64Bit;
-constexpr const char* CompilerName = COMPILER_NAME;
-constexpr const char* OSName       = OS_NAME;
+
+constexpr b8 ClCompiler               = COMPILER_CL;
+constexpr b8 ClangCompiler            = COMPILER_CLANG;
+constexpr b8 GccCompiler              = COMPILER_GCC;
+constexpr b8 is64Bit                  = _64BITBuild;
+constexpr b8 is32Bit                  = !is64Bit;
+constexpr const char* CompilerName    = COMPILER_NAME;
+constexpr const char* OSName          = OS_NAME;
 constexpr const char* CPUArchitecture = ARCH_NAME;
-
-enum Month {
-    Month_January = 1,
-    Month_February,
-    Month_March,
-    Month_April,
-    Month_May,
-    Month_June,
-    Month_July,
-    Month_August,
-    Month_September,
-    Month_October,
-    Month_November,
-    Month_December,
-};
-
-enum WeekDay {
-    WeekDay_Sunday = 1,
-    WeekDay_Monday,
-    WeekDay_Tuesday,
-    WeekDay_Wednesday,
-    WeekDay_Thursday,
-    WeekDay_Friday,
-    WeekDay_Saturday
-};
-
-function String8 stringFromMonth(Month);
 
 //~ forward declarations
 function f32 abs_f32(f32);
