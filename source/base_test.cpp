@@ -6,7 +6,6 @@
    $Description: 
     ========================================================================*/
 
-// #include "stdio.h"
 #include "base.cpp"
 #include "base_platform.cpp"
 #include "base_arena.cpp"
@@ -14,18 +13,33 @@
 
 void testBaseLayer();
 
-
 int main() {
-    Arena a = {};
+    
+    Arena* arena = arena_alloc_(&defaultArenaParams);
 
-    u8 buffer[255] = {};
-
-    // Format stringFormat = StringFormat("[This Is My String]");
+    u8* buffer = push_array(arena, u8, 256); 
     auto sss = "[This Is My String]"_s8;
-
-    Format stringFormat =  Format{nullptr, FormatType_String8, "", (vptr) &sss, (FormatFlags)0};
-    u64 stringSize = printf(buffer, sizeof(buffer), "This is a string %"_s8, &stringFormat);
-
+    u64 integer = 321;
+    auto a = format(-123.f);
+    u64 stringSize = printf(buffer, 256,
+                            R"str(
+This is a string[%]
+This is integer variable[%]
+This is integer literal[%]
+This is float32 literal[%]
+This is float32 literal[%]
+This is float32 literal[%]
+)str"
+                            ""_s8,
+                            format("String"),
+                            format(integer),
+                            format(123),
+                            format(NInfF32.f),
+                            format(NaNF32.f),
+                            format(123.300f));
+    
+    // auto floatFormat = format(123.f);
+    auto floatFormat = format(123.0);
 
     HANDLE stdout = GetStdHandle(STD_OUTPUT_HANDLE);
     BOOL success = WriteFile(stdout,

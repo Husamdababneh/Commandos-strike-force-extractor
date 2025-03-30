@@ -4,9 +4,14 @@ IF NOT EXIST .\bin-int mkdir bin-int
 IF NOT EXIST .\bin mkdir bin
 
 
-set CommonFlags=/Fo:main_cl.obj  /c /nologo /diagnostics:caret /fastfail /FC /std:c++20 /wd4505 /wd5039 /wd4042 /wd4668
-set DebugFlags=%CommonFlags% /Wall /Z7 /EHs- /EHc- /DEBUG:FULL  /DNO_CRT -GS- /d1reportSingleClassLayoutFormat 
+set MSVCFlags=/nologo /diagnostics:caret /fastfail /c /std:c++20 /DNO_CRT /Wall /D_CRT_NO_VA_START_VALIDATION
 rem /showIncludes
+set CommonFlags=/Fo:main_cl.obj /Zi /FC /Gm- /GR- /GS- /EHa- /Oi /EHs- /EHc- /GF 
+set DebugFlags=%CommonFlags% /DEBUG:FULL /wd4505 /wd5039 /wd4042 /wd4668 /wd4576
+
+rem -Zi -nologo -Gm- -GR- -EHa- -Oi -GS- -Gs9999999
+rem /d1reportSingleClassLayoutArena
+rem 
 
 rem -std=c++20
 set ClangSuppressedWarns=-Wno-double-promotion -Wno-old-style-cast -Wno-zero-as-null-pointer-constant -Wno-unused-function -Wno-cast-qual -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-covered-switch-default -Wno-unused-macros -Wno-nonportable-system-include-path
@@ -33,7 +38,7 @@ echo Entering directory `bin-int'
 echo.
 
 echo Compileing Using CL (MSVC Compiler)
-cl %layouts% %DebugFlags%  %Files%
+cl %MSVCFlags% %layouts% %DebugFlags%  %Files%
 
 rem echo.
 rem echo Compileing Using Clang (Clang-cl Compiler)

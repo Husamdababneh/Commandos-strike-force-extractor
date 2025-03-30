@@ -9,7 +9,7 @@
 
 #include "base.h" 
 
-function
+proc
 f32 abs_f32(f32 x) {
     union{f32 f; u32 u;} r;
     r.f  = x;
@@ -18,7 +18,7 @@ f32 abs_f32(f32 x) {
 }
 
 
-function
+proc
 f64 abs_f64(f64 x) {
     union{f64 f; u64 u;} r;
     r.f  = x;
@@ -27,7 +27,7 @@ f64 abs_f64(f64 x) {
 }
 
 //~ Strings
-function
+proc
 string8 operator""_s8(const char* str, size_t length) {
     string8 result;
     result.str  = (u8*)str;
@@ -35,3 +35,8 @@ string8 operator""_s8(const char* str, size_t length) {
     return result;
 }
 
+#define CFUNC_START extern "C" {
+#define CFUNC_END   }
+
+
+// #pragma intrinsic(memset, memcpy)

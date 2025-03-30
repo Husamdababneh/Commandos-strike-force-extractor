@@ -11,6 +11,24 @@
 
 #include "base.h" 
 
+enum ProcessorArchitecture {
+    AMD64,
+    ARM,
+    ARM64,
+    IA64,
+    X86,
+    Unknown
+};
+
+struct SystemInfo {
+    ProcessorArchitecture processorArchitecture;
+    u32 pageSize;
+    u32 granularity;
+    u32 activeProcessors;
+    vptr minAppAddress;
+    vptr maxAppAddress;
+};
+
 #if OS_WINDOWS
     // Put these inside if #if to give me the ability to enable/disable these at will 
     #define WIN32_LEAN_AND_MEAN  // Exclude rarely-used Windows features
@@ -56,6 +74,7 @@
     #define NORESOURCE           // Exclude resource APIs
     #define NOSECURITY           // Exclude security APIs
     #define NOTRACKMOUSEEVENT    // Exclude TrackMouseEvent API
+
     #include "windows.h"
     #include "platform_win32.cpp"
 #elif OS_LINUX // || OS_UNIX || OS_FREEBSD || OS_MAC
@@ -67,7 +86,10 @@
     
 
 
-function vptr allocate_memory(size64 size);
-function void free_memory(void* ptr, size_t size);
+proc SystemInfo getSystemInfo(void);
+proc vptr allocate_memory(const size64 size);
+proc vptr reserve_memory(const size64 size);
+proc void commit_memory(const vptr ptr, const size64 size);
+proc void free_memory(const vptr ptr, const size_t size);
     
 #endif // PLATFORM_H

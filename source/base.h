@@ -18,15 +18,15 @@
 
 // Casey Muratori way of differentiating between the meaning of static in different locations
 // Static Local variable
-#define local_presist static 
+#define local static 
 // Global variable
-#define global_variable static 
+#define global   static 
 // translation-unit scope function
 #define internal static
-
-#define function static
+#define proc static
 
 #define offsetof(a, b) (u64)(&((a*)0)->b)
+#define addressof(x) (&x)
 #define member_size(type, member) (u64)(sizeof(((type *)0)->member))
 #define countof(x) sizeof(x) / sizeof(x[0])
 
@@ -42,15 +42,6 @@
 #define STRINGIZE2(x) #x
 #define LINE_STRING STRINGIZE(__LINE__)
 
-#define alignPow2(x,b)     (((x) + (b) - 1)&(~((b) - 1)))
-#define alignDownPow2(x,b) ((x)&(~((b) - 1)))
-#define alignPadPow2(x,b)  ((0-(x)) & ((b) - 1))
-#define isPow2(x)          ((x)!=0 && ((x)&((x)-1))==0)
-#define isPow2OrZero(x)    ((((x) - 1)&(x)) == 0)
-
-// NOTE: I think this makes the code more readable when used 
-#define isEven(x) (((x) & 1) == 0)
-#define isOdd(x)  (((x) & 1) != 0)
 
 #if defined(_MSC_VER) && !defined(__clang__)
 # define COMPILER_CL 1 // MSVC Default Compiler
@@ -216,6 +207,7 @@ typedef double   f64;
 
 typedef u64  size64;
 typedef void* vptr;
+typedef void const* vcptr;
 
 // NOTE: IF YOU GET "INVALID SUBSCRIPT" ERROR THIS MEANS YOU CANNOT USE THESE TYPES
 // NOTE: Can use this if we want to go back to the following
@@ -370,12 +362,106 @@ constexpr const char* CompilerName    = COMPILER_NAME;
 constexpr const char* OSName          = OS_NAME;
 constexpr const char* CPUArchitecture = ARCH_NAME;
 
+#define alignPow2(x,b)     (((x) + (b) - 1)&(~((b) - 1)))
+#define alignDownPow2(x,b) ((x)&(~((b) - 1)))
+#define alignPadPow2(x,b)  ((0-(x)) & ((b) - 1))
+#define isPow2(x)          ((x)!=0 && ((x)&((x)-1))==0)
+#define isPow2OrZero(x)    ((((x) - 1)&(x)) == 0)
+
+#if COMPILER_CL
+# define alignOf(T) __alignof(T)
+#elif COMPILER_CLANG
+# define alignOf(T) __alignof(T)
+#elif COMPILER_GCC
+# define alignOf(T) __alignof__(T)
+#else
+# error AlignOf not defined for this compiler.
+#endif
+
+#define MemoryZero(s,z)       memset((s),0,(z))
+#define MemoryZeroStruct(s)   MemoryZero((s),sizeof(*(s)))
+#define MemoryZeroArray(a)    MemoryZero((a),sizeof(a))
+#define MemoryZeroTyped(m,c)  MemoryZero((m),sizeof(*(m))*(c))
+
+#define min(A,B) (((A)<(B))?(A):(B))
+#define max(A,B) (((A)>(B))?(A):(B))
+#define clampTop(A,X) min(A,X)
+#define clampBot(X,B) max(X,B)
+#define clamp(A,X,B) (((X)<(A))?(A):((X)>(B))?(B):(X))
+
+// NOTE: I think this makes the code more readable when used 
+#define isEven(x) (((x) & 1) == 0)
+#define isOdd(x)  (((x) & 1) != 0)
+
+
+//- rjf: singly-linked, doubly-headed lists (queues)
+#define SLLQueuePush_NZ(nil,f,l,n,next) (CheckNil(nil,f)?\
+((f)=(l)=(n),SetNil(nil,(n)->next)):\
+((l)->next=(n),(l)=(n),SetNil(nil,(n)->next)))
+#define SLLQueuePushFront_NZ(nil,f,l,n,next) (CheckNil(nil,f)?\
+((f)=(l)=(n),SetNil(nil,(n)->next)):\
+((n)->next=(f),(f)=(n)))
+#define SLLQueuePop_NZ(nil,f,l,next) ((f)==(l)?\
+(SetNil(nil,f),SetNil(nil,l)):\
+((f)=(f)->next))
+
+//- rjf: singly-linked, singly-headed lists (stacks)
+#define SLLStackPush_N(f,n,next) ((n)->next=(f), (f)=(n))
+#define SLLStackPop_N(f,next) ((f)=(f)->next)
+
+//- rjf: doubly-linked-list helpers
+#define DLLInsert_NP(f,l,p,n,next,prev) DLLInsert_NPZ(0,f,l,p,n,next,prev)
+#define DLLPushBack_NP(f,l,n,next,prev) DLLPushBack_NPZ(0,f,l,n,next,prev)
+#define DLLPushFront_NP(f,l,n,next,prev) DLLPushFront_NPZ(0,f,l,n,next,prev)
+#define DLLRemove_NP(f,l,n,next,prev) DLLRemove_NPZ(0,f,l,n,next,prev)
+#define DLLInsert(f,l,p,n) DLLInsert_NPZ(0,f,l,p,n,next,prev)
+#define DLLPushBack(f,l,n) DLLPushBack_NPZ(0,f,l,n,next,prev)
+#define DLLPushFront(f,l,n) DLLPushFront_NPZ(0,f,l,n,next,prev)
+#define DLLRemove(f,l,n) DLLRemove_NPZ(0,f,l,n,next,prev)
+
+//- rjf: singly-linked, doubly-headed list helpers
+#define SLLQueuePush_N(f,l,n,next) SLLQueuePush_NZ(0,f,l,n,next)
+#define SLLQueuePushFront_N(f,l,n,next) SLLQueuePushFront_NZ(0,f,l,n,next)
+#define SLLQueuePop_N(f,l,next) SLLQueuePop_NZ(0,f,l,next)
+#define SLLQueuePush(f,l,n) SLLQueuePush_NZ(0,f,l,n,next)
+#define SLLQueuePushFront(f,l,n) SLLQueuePushFront_NZ(0,f,l,n,next)
+#define SLLQueuePop(f,l) SLLQueuePop_NZ(0,f,l,next)
+
+//- rjf: singly-linked, singly-headed list helpers
+#define SLLStackPush(f,n) SLLStackPush_N(f,n,next)
+#define SLLStackPop(f) SLLStackPop_N(f,next)
+
 //~ forward declarations
-function f32 abs_f32(f32);
-function f64 abs_f64(f64);
+proc f32 abs_f32(f32);
+proc f64 abs_f64(f64);
 
 
+#if defined(NDEBUG)
+#define Assert(x) ((void)0)
+#endif
 
+#if !defined(Assert)
+    #if OS_WINDOWS
+    // Check if we have win32 or not yet
+        #if _WINDOWS_
+        #define Assert(expr) do {                                               \
+                if (!(expr)) {                                                  \
+                    MessageBoxA(NULL, "Assertion Failed: " #expr, "Assert",     \
+                                MB_ICONERROR | MB_OK);                          \
+                    __debugbreak();                                               \
+                }                                                               \
+            } while (0)
+        #else
+        #define Assert(expr) do {                                               \
+                if (!(expr)) {                                                  \
+                    __debugbreak();                                               \
+                }                                                               \
+            } while (0)
+        #endif
+    #else
+        #error "ASSERT is only defined for Windows."
+    #endif
+#endif 
 
 #endif // BASE_H
 
