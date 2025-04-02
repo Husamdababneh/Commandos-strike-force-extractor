@@ -17,26 +17,69 @@ int main() {
     
     Arena* arena = arena_alloc_(&defaultArenaParams);
 
-    u8* buffer = push_array(arena, u8, 256); 
+    u8* buffer = push_array(arena, u8, 2048); 
     auto sss = "[This Is My String]"_s8;
     u64 integer = 321;
+    u32 integer2 = 321;
     auto a = format(-123.f);
-    u64 stringSize = printf(buffer, 256,
+    auto a2 = format(integer2);
+
+    const FloatUnion LARGEST_NORMAL_FLOAT = { 0x7f7fffff };
+    float one_plus_bit = FloatUnion{ 0x3F80'0001 }.f;
+    u64 stringSize = printf(buffer, 2048,
                             R"str(
-This is a string[%]
-This is integer variable[%]
-This is integer literal[%]
-This is float32 literal[%]
-This is float32 literal[%]
-This is float32 literal[%]
+
+Expected = Actual
+[String] = [%]
+[321]    = [%]
+[123]    = [%]
+----------------- Float 32s
+[0.0]    = [%]
+[-0.0]   = [%]
+[-Inf]   = [%]
+[+Inf]   = [%]
+[NaN]    = [%]
+
+[1.0f]            = [%] -> Unity (1.0)  
+[0.1f]            = [%] -> A common test case for non-integer precision  
+[0.5f]            = [%] -> Half  
+[1.5f]            = [%] -> One and a half  
+[2.5f]            = [%] -> Two and a half  
+[2.0f]            = [%] -> Power of two (2.0)  
+[4.0f]            = [%] -> Power of two (4.0)  
+[8.0f]            = [%] -> Power of two (8.0)  
+[1024.0f]         = [%] -> Larger power of two  
+[-123.456f]       = [%] -> Negative non-integer value  
+[1.17549435e-38f] = [%] -> Smallest Normal Float
+[3.40282347e+38f] = [%] -> Largest Normal Float
+[nextafter(1.0f)] = [%] -> Next representable float after 1.0  
+[1.40129846e-45f] = [%] -> Smallest Subnormal
+
 )str"
                             ""_s8,
                             format("String"),
                             format(integer),
                             format(123),
+                            format(0.0f),
+                            format(-0.0f),
                             format(NInfF32.f),
+                            format(PInfF32.f),
                             format(NaNF32.f),
-                            format(123.300f));
+                            format(1.0f),
+                            format(0.1f),
+                            format(0.5f),
+                            format(1.5f),
+                            format(2.5f),
+                            format(2.0f),
+                            format(4.0f),
+                            format(8.0f),
+                            format(1024.0f),
+                            format(-123.456f),
+                            format(1.17549435e-38f),
+                            format(LARGEST_NORMAL_FLOAT.f),// format(3.40282347e+38f),
+                            format(one_plus_bit), // format(1.0000001),
+                            format(1.40129846e-45f)
+                            );
     
     // auto floatFormat = format(123.f);
     auto floatFormat = format(123.0);

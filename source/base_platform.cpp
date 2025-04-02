@@ -36,6 +36,7 @@ SystemInfo getSystemInfo() {
 }
 
 
+// This should go to platform_<platform>.cpp files
 extern "C" {
 // proc inline
 int _fltused;

@@ -35,6 +35,20 @@ string8 operator""_s8(const char* str, size_t length) {
     return result;
 }
 
+// TODO: Move to Base Math
+proc
+u64 power(u32 base, u32 exp) {
+    u64 result = 1; // Use a larger type to avoid overflow
+
+    while (exp) {
+        if (exp & 1) result *= base; // Multiply when the lowest bit is set
+        base *= base;  // Square the base
+        exp >>= 1;     // Divide exponent by 2 (shift right)
+    }
+
+    return result;
+}
+
 #define CFUNC_START extern "C" {
 #define CFUNC_END   }
 
